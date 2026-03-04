@@ -6,6 +6,14 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const textToSpeech = require("@google-cloud/text-to-speech");
+
+const app = express();
+
+// GOOGLE CLIENT
+const client = new textToSpeech.TextToSpeechClient({
+  keyFilename: path.join(__dirname, "keys/google-key.json")
+});
+
 const Sanscript = require("sanscript");
 const rateLimit = require("express-rate-limit");
 const Database = require("better-sqlite3");
@@ -14,50 +22,74 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
-// -------------------- GOOGLE CREDS (HOSTINGER + LOCAL SAFE) --------------------
+// -------------------- GOOGLE CREDS (HOSTINGER SAFE) --------------------
+// We DO NOT rely on /keys on Hostinger. We write creds to /tmp.
 const TMP_KEY_PATH = "/tmp/google-key.json";
 
-function ensureGoogleCreds() {
-  // 1) BEST: Hostinger env var (one-line Base64)
+function initGoogleCreds() {
+  // 1) Hostinger recommended: GOOGLE_CREDS_B64 (one-line base64)
   const b64 = (process.env.GOOGLE_CREDS_B64 || "").trim();
   if (b64) {
     try {
       const jsonText = Buffer.from(b64, "base64").toString("utf8");
-
       if (!jsonText.trim().startsWith("{")) {
-        return { ok: false, source: "GOOGLE_CREDS_B64", reason: "Decoded text is not JSON (bad base64)" };
+        return { ok: false, source: "GOOGLE_CREDS_B64", reason: "Decoded text is not JSON" };
       }
-
       fs.writeFileSync(TMP_KEY_PATH, jsonText, "utf8");
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = TMP_KEY_PATH;
-
       return { ok: true, source: "GOOGLE_CREDS_B64", path: TMP_KEY_PATH, size: fs.statSync(TMP_KEY_PATH).size };
     } catch (e) {
       return { ok: false, source: "GOOGLE_CREDS_B64", reason: e?.message || String(e) };
     }
   }
 
-  // 2) LOCAL: GOOGLE_APPLICATION_CREDENTIALS points to a JSON file path
-  // Example .env: GOOGLE_APPLICATION_CREDENTIALS=./keys/yourkey.json
+  // 2) Optional fallback: GOOGLE_CREDS_JSON (raw JSON). Often fails on Hostinger (truncation).
+  const rawJson = (process.env.GOOGLE_CREDS_JSON || "").trim();
+  if (rawJson) {
+    try {
+      const cleaned =
+        rawJson.startsWith('"') && rawJson.endsWith('"')
+          ? rawJson.slice(1, -1).replace(/\\"/g, '"')
+          : rawJson;
+
+      if (!cleaned.trim().startsWith("{")) {
+        return { ok: false, source: "GOOGLE_CREDS_JSON", reason: "Value is not JSON (maybe truncated)" };
+      }
+      fs.writeFileSync(TMP_KEY_PATH, cleaned, "utf8");
+      return { ok: true, source: "GOOGLE_CREDS_JSON", path: TMP_KEY_PATH, size: fs.statSync(TMP_KEY_PATH).size };
+    } catch (e) {
+      return { ok: false, source: "GOOGLE_CREDS_JSON", reason: e?.message || String(e) };
+    }
+  }
+
+  // 3) Localhost: GOOGLE_APPLICATION_CREDENTIALS points to a local JSON file
   const gac = (process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
   if (gac) {
     const abs = path.isAbsolute(gac) ? gac : path.join(process.cwd(), gac);
     if (fs.existsSync(abs)) {
       return { ok: true, source: "GOOGLE_APPLICATION_CREDENTIALS", path: abs, size: fs.statSync(abs).size };
     }
-    return { ok: false, source: "GOOGLE_APPLICATION_CREDENTIALS", reason: "Path not found", path: abs };
+    return { ok: false, source: "GOOGLE_APPLICATION_CREDENTIALS", reason: `File not found: ${abs}` };
   }
 
-  // 3) Nothing provided
+  // Nothing
   return { ok: false, source: "none", reason: "Set GOOGLE_CREDS_B64 (Hostinger) or GOOGLE_APPLICATION_CREDENTIALS (local)" };
 }
 
-const CREDS_STATUS = ensureGoogleCreds();
+const CREDS_STATUS = initGoogleCreds();
 
-// Create Google client AFTER creds
-const ttsClient = new textToSpeech.TextToSpeechClient(
-  CREDS_STATUS.ok ? { keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS } : undefined
-);
+// Create client using the best available method
+function buildTtsClient() {
+  if (CREDS_STATUS.ok && (CREDS_STATUS.source === "GOOGLE_CREDS_B64" || CREDS_STATUS.source === "GOOGLE_CREDS_JSON")) {
+    return new textToSpeech.TextToSpeechClient({ keyFilename: TMP_KEY_PATH });
+  }
+  if (CREDS_STATUS.ok && CREDS_STATUS.source === "GOOGLE_APPLICATION_CREDENTIALS") {
+    return new textToSpeech.TextToSpeechClient({ keyFilename: CREDS_STATUS.path });
+  }
+  // Will likely fail unless ADC exists (rare on Hostinger)
+  return new textToSpeech.TextToSpeechClient();
+}
+
+const client = buildTtsClient();
 
 // -------------------- APP --------------------
 const app = express();
@@ -66,14 +98,15 @@ const GUEST_DAILY_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 300);
 const FREE_USER_DAILY_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 2000);
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
 
-// IMPORTANT: secure cookies only on Hostinger (HTTPS)
-const IS_PROD = process.env.NODE_ENV === "production" || String(process.env.HOSTINGER || "").toLowerCase() === "true";
+// IMPORTANT: secure cookies only in production
+const IS_PROD = process.env.NODE_ENV === "production";
 
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cookieParser());
 
+// Sessions
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -81,13 +114,14 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: IS_PROD, // false on localhost, true on Hostinger https
+      secure: IS_PROD, // <-- FIXED (localhost will work)
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
 );
 
+// Rate limit
 app.use(
   "/api/",
   rateLimit({
@@ -113,28 +147,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Debug endpoint (must exist on Hostinger if correct server.js is deployed)
+// Debug endpoint (NO secrets leaked)
 app.get("/api/debug-creds", (req, res) => {
-  const p = process.env.GOOGLE_APPLICATION_CREDENTIALS || "";
-  let exists = false;
-  let size = 0;
-  let statErr = null;
+  let tmpExists = false;
+  let tmpSize = 0;
+  let tmpErr = null;
 
   try {
-    const st = fs.statSync(p);
-    exists = true;
-    size = st.size;
+    const st = fs.statSync(TMP_KEY_PATH);
+    tmpExists = true;
+    tmpSize = st.size;
   } catch (e) {
-    statErr = e?.message || String(e);
+    tmpErr = e?.message || String(e);
   }
 
   res.json({
     creds_status: CREDS_STATUS,
     has_GOOGLE_CREDS_B64: Boolean((process.env.GOOGLE_CREDS_B64 || "").trim()),
-    GOOGLE_APPLICATION_CREDENTIALS: p,
-    file_exists: exists,
-    file_size: size,
-    stat_error: statErr,
+    has_GOOGLE_CREDS_JSON: Boolean((process.env.GOOGLE_CREDS_JSON || "").trim()),
+    tmp_path: TMP_KEY_PATH,
+    tmp_exists: tmpExists,
+    tmp_size: tmpSize,
+    tmp_error: tmpErr,
   });
 });
 
@@ -316,6 +350,14 @@ function cleanGender(g) {
 // ---------- TTS ----------
 app.post("/api/tts", async (req, res) => {
   try {
+    // If creds missing, fail clearly (don’t hide it)
+    if (!CREDS_STATUS.ok) {
+      return res.status(500).json({
+        error: "Google credentials missing on server.",
+        detail: CREDS_STATUS,
+      });
+    }
+
     const { text, gender } = req.body;
 
     const cleanText = String(text || "").trim();
@@ -336,18 +378,14 @@ app.post("/api/tts", async (req, res) => {
       audioConfig: { audioEncoding: "MP3" },
     };
 
-    const [response] = await ttsClient.synthesizeSpeech(request);
+    const [response] = await client.synthesizeSpeech(request);
     const audioBase64 = response.audioContent.toString("base64");
 
     addUsed(todayStr(), getUsageKey(req), chars);
     res.json({ audioBase64, ...getRemaining(req) });
   } catch (e) {
     console.error("TTS Error:", e);
-    res.status(500).json({
-      error: "Failed to generate speech.",
-      detail: e?.message || String(e),
-      creds_status: CREDS_STATUS,
-    });
+    res.status(500).json({ error: "Failed to generate speech.", detail: e?.message || String(e) });
   }
 });
 
