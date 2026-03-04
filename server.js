@@ -1,9 +1,8 @@
-
-
 require("dotenv").config();
 
-const express = require("express");
+const fs = require("fs");
 const path = require("path");
+const express = require("express");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const Sanscript = require("sanscript");
 const rateLimit = require("express-rate-limit");
@@ -13,6 +12,35 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
+
+// ------------------------------------------------
+// GOOGLE CREDENTIALS (Hostinger Safe)
+// ------------------------------------------------
+
+(function setupGoogleCreds() {
+  const raw = (process.env.GOOGLE_CREDS_JSON || "").trim();
+
+  console.log("Has GOOGLE_CREDS_JSON?", Boolean(raw));
+
+  if (!raw) return;
+
+  const keyPath = "/tmp/google-key.json";
+
+  const cleaned =
+    raw.startsWith('"') && raw.endsWith('"')
+      ? raw.slice(1, -1).replace(/\\"/g, '"')
+      : raw;
+
+  fs.writeFileSync(keyPath, cleaned, "utf8");
+
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
+
+  console.log("Google credentials written:", keyPath);
+})();
+
+
+// ------------------------------------------------
+
 const app = express();
 const client = new textToSpeech.TextToSpeechClient();
 
@@ -21,24 +49,33 @@ const FREE_USER_DAILY_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 2000);
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
 
 app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cookieParser());
 
-// Sessions (login)
+
+// ------------------------------------------------
+// SESSION
+// ------------------------------------------------
+
 app.use(session({
-  secret: process.env.SESSION_SECRET,
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false, // change to true AFTER deploying to HTTPS
+    secure: true,
     sameSite: "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   }
 }));
 
-// Basic anti-bot rate limit
+
+// ------------------------------------------------
+// RATE LIMIT
+// ------------------------------------------------
+
 app.use(
   "/api/",
   rateLimit({
@@ -49,22 +86,34 @@ app.use(
   })
 );
 
-// Device cookie (guest tracking)
+
+// ------------------------------------------------
+// DEVICE COOKIE
+// ------------------------------------------------
+
 app.use((req, res, next) => {
   if (!req.cookies.deviceId) {
     const id = crypto.randomBytes(16).toString("hex");
+
     res.cookie("deviceId", id, {
       httpOnly: true,
       sameSite: "lax",
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
+
     req.cookies.deviceId = id;
   }
+
   next();
 });
 
-// ---------- DB ----------
+
+// ------------------------------------------------
+// DATABASE
+// ------------------------------------------------
+
 const db = new Database(path.join(__dirname, "data.sqlite"));
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,11 +146,12 @@ function getIp(req) {
   );
 }
 
-// Usage key: if logged in → user:<id>, else guest:<ip>:<deviceId>
 function getUsageKey(req) {
   if (req.session?.userId) return `user:${req.session.userId}`;
+
   const ip = getIp(req);
   const deviceId = req.cookies.deviceId || "no_device";
+
   return `guest:${ip}:${deviceId}`;
 }
 
@@ -123,10 +173,12 @@ function addUsed(day, key, addChars) {
 }
 
 function getRemaining(req) {
+
   const day = todayStr();
   const key = getUsageKey(req);
   const used = getUsed(day, key);
   const limit = getLimit(req);
+
   return {
     day,
     key,
@@ -137,147 +189,191 @@ function getRemaining(req) {
   };
 }
 
-// ---------- ROMAN NORMALIZATION ----------
+
+// ------------------------------------------------
+// ROMAN NORMALIZATION
+// ------------------------------------------------
+
 function normalizeRomanPunjabi(text = "") {
   return text
     .replace(/\bhanji\b/gi, "haan ji")
-    .replace(/\bhaan\b/gi, "haaN")
     .replace(/\btusi\b/gi, "tusii")
     .replace(/\bkiwen\b/gi, "kiveN")
     .replace(/\bkiven\b/gi, "kiveN")
-    .replace(/\bkuj(h)?\b/gi, "kujh")
     .replace(/\bkuch\b/gi, "kujh")
     .replace(/\bmain\b/gi, "maiN")
-    .replace(/\bmein\b/gi, "maiN")
-    .replace(/\bnahee\b/gi, "nahiN")
     .replace(/\bnahi\b/gi, "nahiN")
-    .replace(/\bnahin\b/gi, "nahiN")
-    .replace(/\btheek\b/gi, "Thik")
-    .replace(/\bha\b/gi, "hai");
+    .replace(/\btheek\b/gi, "Thik");
 }
 
-// ---------- AUTH ----------
+
+// ------------------------------------------------
+// AUTH
+// ------------------------------------------------
+
 app.post("/api/auth/register", (req, res) => {
+
   try {
+
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || "");
 
-    if (!email.includes("@")) return res.status(400).json({ error: "Enter a valid email." });
-    if (password.length < 6) return res.status(400).json({ error: "Password must be 6+ characters." });
+    if (!email.includes("@"))
+      return res.status(400).json({ error: "Enter a valid email." });
+
+    if (password.length < 6)
+      return res.status(400).json({ error: "Password must be 6+ characters." });
 
     const password_hash = bcrypt.hashSync(password, 10);
     const created_at = new Date().toISOString();
 
-    db.prepare("INSERT INTO users(email, password_hash, created_at) VALUES(?,?,?)").run(
-      email,
-      password_hash,
-      created_at
-    );
+    db.prepare("INSERT INTO users(email,password_hash,created_at) VALUES(?,?,?)")
+      .run(email, password_hash, created_at);
 
     const user = db.prepare("SELECT id,email FROM users WHERE email=?").get(email);
+
     req.session.userId = user.id;
 
     res.json({ ok: true, user, ...getRemaining(req) });
+
   } catch (e) {
-    if (String(e).includes("UNIQUE")) return res.status(409).json({ error: "Email already registered. Please login." });
+
+    if (String(e).includes("UNIQUE"))
+      return res.status(409).json({ error: "Email already registered." });
+
     console.error(e);
+
     res.status(500).json({ error: "Register failed." });
   }
 });
 
+
+// ------------------------------------------------
+// LOGIN
+// ------------------------------------------------
+
 app.post("/api/auth/login", (req, res) => {
+
   try {
+
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || "");
 
-    const userRow = db.prepare("SELECT id,email,password_hash FROM users WHERE email=?").get(email);
-    if (!userRow) return res.status(401).json({ error: "Invalid email or password." });
+    const userRow = db.prepare("SELECT * FROM users WHERE email=?").get(email);
+
+    if (!userRow)
+      return res.status(401).json({ error: "Invalid email or password." });
 
     const ok = bcrypt.compareSync(password, userRow.password_hash);
-    if (!ok) return res.status(401).json({ error: "Invalid email or password." });
+
+    if (!ok)
+      return res.status(401).json({ error: "Invalid email or password." });
 
     req.session.userId = userRow.id;
-    res.json({ ok: true, user: { id: userRow.id, email: userRow.email }, ...getRemaining(req) });
+
+    res.json({
+      ok: true,
+      user: { id: userRow.id, email: userRow.email },
+      ...getRemaining(req),
+    });
+
   } catch (e) {
+
     console.error(e);
+
     res.status(500).json({ error: "Login failed." });
   }
 });
 
-app.post("/api/auth/logout", (req, res) => {
-  req.session.destroy(() => res.json({ ok: true }));
-});
 
-app.get("/api/me", (req, res) => {
-  if (!req.session?.userId) return res.json({ user: null, ...getRemaining(req) });
-  const user = db.prepare("SELECT id,email FROM users WHERE id=?").get(req.session.userId);
-  res.json({ user: user || null, ...getRemaining(req) });
-});
+// ------------------------------------------------
+// CONVERT
+// ------------------------------------------------
 
-// ---------- USAGE ----------
-app.get("/api/usage", (req, res) => {
-  res.json(getRemaining(req));
-});
-
-// ---------- CONVERT ----------
 app.post("/api/convert", (req, res) => {
+
   try {
+
     const { text } = req.body;
+
     if (!text) return res.json({ gurmukhi: "" });
+
     const cleaned = normalizeRomanPunjabi(text);
+
     const gurmukhi = Sanscript.t(cleaned, "itrans", "gurmukhi");
+
     res.json({ gurmukhi });
+
   } catch (e) {
+
     console.error("Convert error:", e);
+
     res.status(500).json({ error: "Convert failed" });
   }
 });
 
-// Helpers for voice params
-function clamp(num, min, max) {
-  const n = Number(num);
-  if (Number.isNaN(n)) return null;
-  return Math.min(max, Math.max(min, n));
-}
-function cleanGender(g) {
-  const up = String(g || "").toUpperCase();
-  if (up === "MALE" || up === "FEMALE" || up === "NEUTRAL") return up;
-  return "NEUTRAL";
-}
 
-// ---------- TTS (enforce daily limit) ----------
+// ------------------------------------------------
+// TTS
+// ------------------------------------------------
+
 app.post("/api/tts", async (req, res) => {
+
   try {
+
     const { text, gender } = req.body;
 
     const cleanText = String(text || "").trim();
-    if (!cleanText) return res.status(400).json({ error: "Text is required." });
+
+    if (!cleanText)
+      return res.status(400).json({ error: "Text required." });
 
     const chars = cleanText.length;
+
     const status = getRemaining(req);
+
     if (chars > status.remaining) {
       return res.status(402).json({
-        error: `Daily limit reached. Remaining today: ${status.remaining} characters.`,
-        ...status,
+        error: `Daily limit reached.`,
+        ...status
       });
     }
 
     const request = {
       input: { text: cleanText },
-      voice: { languageCode: "pa-IN", ssmlGender: cleanGender(gender) },
+      voice: {
+        languageCode: "pa-IN",
+        ssmlGender: (gender || "NEUTRAL").toUpperCase()
+      },
       audioConfig: { audioEncoding: "MP3" },
     };
 
     const [response] = await client.synthesizeSpeech(request);
+
     const audioBase64 = response.audioContent.toString("base64");
 
     addUsed(todayStr(), getUsageKey(req), chars);
+
     res.json({ audioBase64, ...getRemaining(req) });
+
   } catch (e) {
-    console.error("TTS Error:", e);
-    res.status(500).json({ error: "Failed to generate speech." });
+
+    console.error("TTS ERROR:", e);
+
+    res.status(500).json({
+      error: "Failed to generate speech",
+      detail: e?.message || String(e)
+    });
   }
 });
 
+
+// ------------------------------------------------
+// SERVER
+// ------------------------------------------------
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+
+app.listen(PORT, () =>
+  console.log(`Server running on port ${PORT}`)
+);
