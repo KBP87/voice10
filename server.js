@@ -1,3 +1,5 @@
+"use strict";
+
 require("dotenv").config();
 
 const fs = require("fs");
@@ -12,41 +14,66 @@ const session = require("express-session");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
 
-// ---------- GOOGLE CREDS (supports file path OR base64) ----------
-(function setupGoogleCreds() {
-  // Option 1 (EASIEST): GOOGLE_APPLICATION_CREDENTIALS points to an uploaded json file
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    console.log("Using GOOGLE_APPLICATION_CREDENTIALS:", process.env.GOOGLE_APPLICATION_CREDENTIALS);
-    return;
-  }
+// -------------------- GOOGLE CREDS (HOSTINGER + LOCAL SAFE) --------------------
+const TMP_KEY_PATH = "/tmp/google-key.json";
 
-  // Option 2: base64 JSON in env GOOGLE_CREDS_B64
-  if (process.env.GOOGLE_CREDS_B64) {
+function ensureGoogleCreds() {
+  // 1) BEST: Hostinger env var (one-line Base64)
+  const b64 = (process.env.GOOGLE_CREDS_B64 || "").trim();
+  if (b64) {
     try {
-      const keyPath = "/tmp/google-key.json";
-      const jsonText = Buffer.from(process.env.GOOGLE_CREDS_B64, "base64").toString("utf8");
-      fs.writeFileSync(keyPath, jsonText, "utf8");
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = keyPath;
-      console.log("Wrote Google key from GOOGLE_CREDS_B64 to:", keyPath, "size:", fs.statSync(keyPath).size);
-      return;
+      const jsonText = Buffer.from(b64, "base64").toString("utf8");
+
+      if (!jsonText.trim().startsWith("{")) {
+        return { ok: false, source: "GOOGLE_CREDS_B64", reason: "Decoded text is not JSON (bad base64)" };
+      }
+
+      fs.writeFileSync(TMP_KEY_PATH, jsonText, "utf8");
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = TMP_KEY_PATH;
+
+      return { ok: true, source: "GOOGLE_CREDS_B64", path: TMP_KEY_PATH, size: fs.statSync(TMP_KEY_PATH).size };
     } catch (e) {
-      console.error("Failed to write creds from GOOGLE_CREDS_B64:", e);
+      return { ok: false, source: "GOOGLE_CREDS_B64", reason: e?.message || String(e) };
     }
   }
 
-  console.log("Google creds missing. Set GOOGLE_APPLICATION_CREDENTIALS (file path) OR GOOGLE_CREDS_B64.");
-})();
+  // 2) LOCAL: GOOGLE_APPLICATION_CREDENTIALS points to a JSON file path
+  // Example .env: GOOGLE_APPLICATION_CREDENTIALS=./keys/yourkey.json
+  const gac = (process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
+  if (gac) {
+    const abs = path.isAbsolute(gac) ? gac : path.join(process.cwd(), gac);
+    if (fs.existsSync(abs)) {
+      return { ok: true, source: "GOOGLE_APPLICATION_CREDENTIALS", path: abs, size: fs.statSync(abs).size };
+    }
+    return { ok: false, source: "GOOGLE_APPLICATION_CREDENTIALS", reason: "Path not found", path: abs };
+  }
 
-// ---------- APP ----------
+  // 3) Nothing provided
+  return { ok: false, source: "none", reason: "Set GOOGLE_CREDS_B64 (Hostinger) or GOOGLE_APPLICATION_CREDENTIALS (local)" };
+}
+
+const CREDS_STATUS = ensureGoogleCreds();
+
+// Create Google client AFTER creds
+const ttsClient = new textToSpeech.TextToSpeechClient(
+  CREDS_STATUS.ok ? { keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS } : undefined
+);
+
+// -------------------- APP --------------------
 const app = express();
-app.set("trust proxy", 1);
 
+const GUEST_DAILY_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 300);
+const FREE_USER_DAILY_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 2000);
+const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
+
+// IMPORTANT: secure cookies only on Hostinger (HTTPS)
+const IS_PROD = process.env.NODE_ENV === "production" || String(process.env.HOSTINGER || "").toLowerCase() === "true";
+
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(cookieParser());
 
-// Sessions (login)
-const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -54,14 +81,13 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // set true only when you have HTTPS domain working
+      secure: IS_PROD, // false on localhost, true on Hostinger https
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
 );
 
-// Basic anti-bot rate limit
 app.use(
   "/api/",
   rateLimit({
@@ -79,11 +105,37 @@ app.use((req, res, next) => {
     res.cookie("deviceId", id, {
       httpOnly: true,
       sameSite: "lax",
+      secure: IS_PROD,
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
     req.cookies.deviceId = id;
   }
   next();
+});
+
+// ✅ Debug endpoint (must exist on Hostinger if correct server.js is deployed)
+app.get("/api/debug-creds", (req, res) => {
+  const p = process.env.GOOGLE_APPLICATION_CREDENTIALS || "";
+  let exists = false;
+  let size = 0;
+  let statErr = null;
+
+  try {
+    const st = fs.statSync(p);
+    exists = true;
+    size = st.size;
+  } catch (e) {
+    statErr = e?.message || String(e);
+  }
+
+  res.json({
+    creds_status: CREDS_STATUS,
+    has_GOOGLE_CREDS_B64: Boolean((process.env.GOOGLE_CREDS_B64 || "").trim()),
+    GOOGLE_APPLICATION_CREDENTIALS: p,
+    file_exists: exists,
+    file_size: size,
+    stat_error: statErr,
+  });
 });
 
 // ---------- DB ----------
@@ -120,16 +172,12 @@ function getIp(req) {
   );
 }
 
-// Usage key: if logged in → user:<id>, else guest:<ip>:<deviceId>
 function getUsageKey(req) {
   if (req.session?.userId) return `user:${req.session.userId}`;
   const ip = getIp(req);
   const deviceId = req.cookies.deviceId || "no_device";
   return `guest:${ip}:${deviceId}`;
 }
-
-const GUEST_DAILY_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 300);
-const FREE_USER_DAILY_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 2000);
 
 function getLimit(req) {
   return req.session?.userId ? FREE_USER_DAILY_LIMIT : GUEST_DAILY_LIMIT;
@@ -266,8 +314,6 @@ function cleanGender(g) {
 }
 
 // ---------- TTS ----------
-const client = new textToSpeech.TextToSpeechClient();
-
 app.post("/api/tts", async (req, res) => {
   try {
     const { text, gender } = req.body;
@@ -290,7 +336,7 @@ app.post("/api/tts", async (req, res) => {
       audioConfig: { audioEncoding: "MP3" },
     };
 
-    const [response] = await client.synthesizeSpeech(request);
+    const [response] = await ttsClient.synthesizeSpeech(request);
     const audioBase64 = response.audioContent.toString("base64");
 
     addUsed(todayStr(), getUsageKey(req), chars);
@@ -299,7 +345,8 @@ app.post("/api/tts", async (req, res) => {
     console.error("TTS Error:", e);
     res.status(500).json({
       error: "Failed to generate speech.",
-      detail: String(e?.message || e),
+      detail: e?.message || String(e),
+      creds_status: CREDS_STATUS,
     });
   }
 });
