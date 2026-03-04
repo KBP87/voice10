@@ -1,5 +1,12 @@
 require("dotenv").config();
 
+const fs = require("fs");
+
+console.log("GOOGLE_APPLICATION_CREDENTIALS =", process.env.GOOGLE_APPLICATION_CREDENTIALS);
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.log("Cred file exists?", fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS));
+}
+
 const express = require("express");
 const path = require("path");
 const textToSpeech = require("@google-cloud/text-to-speech");
