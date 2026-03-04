@@ -3,6 +3,19 @@
 require("dotenv").config();
 
 const fs = require("fs");
+
+const b64Path = "./google-creds.b64";
+if (fs.existsSync(b64Path)) {
+  const b64 = fs.readFileSync(b64Path, "utf8").trim();
+  const json = Buffer.from(b64, "base64").toString("utf8");
+  fs.writeFileSync("/tmp/google-key.json", json, "utf8");
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = "/tmp/google-key.json";
+  console.log("✅ Google creds loaded from google-creds.b64");
+} else {
+  console.log("❌ google-creds.b64 NOT found");
+}
+
+const fs = require("fs");
 const path = require("path");
 
 const express = require("express");
