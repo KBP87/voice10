@@ -1,605 +1,179 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>VoicePunjab — Punjabi Text-to-Speech</title>
-
-  <style>
-    :root{
-      --bg1:#f9fafb;
-      --bg2:#eef2ff;
-      --card:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --border:#e5e7eb;
-      --shadow:0 12px 30px rgba(0,0,0,0.06);
-
-      --primary:#4f46e5;
-      --primaryHover:#4338ca;
-
-      --btnSecondary:#f3f4f6;
-      --btnSecondaryHover:#e5e7eb;
-
-      --radius:16px;
-    }
-
-    *{ box-sizing: border-box; }
-
-    body{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
-      margin:0;
-      padding:40px 18px;
-      color:var(--text);
-    }
-
-    .wrap{ max-width: 1150px; margin: 0 auto; }
-
-    .hero { text-align: center; margin-bottom: 30px; }
-
-    .brand {
-      font-size: 42px;
-      font-weight: 800;
-      margin: 0;
-      letter-spacing: -0.03em;
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .tagline {
-      margin-top: 10px;
-      font-size: 15px;
-      color: #6b7280;
-    }
-
-    .top{
-      display:flex;
-      justify-content:space-between;
-      gap:14px;
-      flex-wrap:wrap;
-      align-items:flex-start;
-      margin-bottom: 16px;
-    }
-
-    h1{
-      margin:0 0 6px;
-      font-size: 34px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-    }
-
-    .subtitle{
-      margin:0 0 14px;
-      color:var(--muted);
-      line-height:1.4;
-      font-size: 14px;
-    }
-
-    .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      background: rgba(255,255,255,0.75);
-      backdrop-filter: blur(6px);
-      border:1px solid var(--border);
-      padding:10px 12px;
-      border-radius:999px;
-      font-size:13px;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.04);
-      min-height: 40px;
-    }
-
-    .brandBadge{
-      display:inline-flex;
-      align-items:center;
-      gap:10px;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .dot{
-      width:10px; height:10px; border-radius:50%;
-      background: linear-gradient(135deg, var(--primary), #7c3aed);
-      box-shadow: 0 6px 14px rgba(79,70,229,0.25);
-    }
-
-    .auth{
-      background: rgba(255,255,255,0.85);
-      backdrop-filter: blur(6px);
-      border:1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px;
-      min-width: 320px;
-      box-shadow: var(--shadow);
-    }
-
-    .auth h3{
-      margin:0 0 10px;
-      font-size: 14px;
-      font-weight: 700;
-      color:#111827;
-    }
-
-    .row{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
-    .sr-only{
-      position:absolute;
-      width:1px;
-      height:1px;
-      padding:0;
-      margin:-1px;
-      overflow:hidden;
-      clip:rect(0,0,0,0);
-      white-space:nowrap;
-      border:0;
-    }
-
-    input{
-      padding:10px 12px;
-      border:1px solid var(--border);
-      border-radius: 12px;
-      font-size: 14px;
-      width: 150px;
-      outline:none;
-      background:#fff;
-    }
-    input:focus{
-      border-color: rgba(79,70,229,0.55);
-      box-shadow: 0 0 0 4px rgba(79,70,229,0.12);
-    }
-
-    button{
-      padding:10px 14px;
-      border-radius: 12px;
-      border:1px solid var(--border);
-      cursor:pointer;
-      font-weight: 600;
-      font-size: 14px;
-      background:#fff;
-      transition: transform .02s ease, background .15s ease, border-color .15s ease;
-    }
-    button:active{ transform: translateY(1px); }
-    button:disabled{ opacity:.55; cursor:not-allowed; }
-
-    button.primary{
-      background: var(--primary);
-      color:#fff;
-      border-color: var(--primary);
-    }
-    button.primary:hover{ background: var(--primaryHover); border-color: var(--primaryHover); }
-
-    button.secondary{
-      background: var(--btnSecondary);
-      color: var(--text);
-    }
-    button.secondary:hover{ background: var(--btnSecondaryHover); }
-
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-top: 14px;
-    }
-    @media (max-width: 980px){
-      .grid{ grid-template-columns: 1fr; }
-      .auth{ min-width: 100%; }
-    }
-
-    .card{
-      background: rgba(255,255,255,0.90);
-      backdrop-filter: blur(6px);
-      border:1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px;
-      box-shadow: var(--shadow);
-    }
-
-    .card h2{
-      margin:0 0 12px;
-      font-size: 16px;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-    }
-
-    textarea{
-      width:100%;
-      height:170px;
-      padding:12px;
-      font-size:16px;
-      border:1px solid var(--border);
-      border-radius: 12px;
-      outline:none;
-      background:#fff;
-      resize: vertical;
-    }
-    textarea:focus{
-      border-color: rgba(79,70,229,0.55);
-      box-shadow: 0 0 0 4px rgba(79,70,229,0.12);
-    }
-
-    select{
-      padding:10px 12px;
-      border:1px solid var(--border);
-      border-radius: 12px;
-      font-size: 14px;
-      background:#fff;
-      outline:none;
-    }
-    select:focus{
-      border-color: rgba(79,70,229,0.55);
-      box-shadow: 0 0 0 4px rgba(79,70,229,0.12);
-    }
-
-    .label{
-      font-size:13px;
-      color:var(--muted);
-      font-weight:700;
-    }
-
-    .mt10{ margin-top:10px; }
-    .mt12{ margin-top:12px; }
-
-    audio{
-      width: 100%;
-      margin-top: 10px;
-      border-radius: 12px;
-    }
-
-    .preview{
-      margin-top: 10px;
-      padding: 12px;
-      background: rgba(243,244,246,0.75);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      min-height: 85px;
-      white-space: pre-wrap;
-    }
-
-    .small{
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 10px;
-      line-height: 1.35;
-    }
-
-    .err{
-      color:#b00020;
-      font-size: 13px;
-      margin-top: 10px;
-      line-height:1.25;
-    }
-  </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VoicePunjab Punjabi TTS</title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
-
 <body>
   <div class="wrap">
-
-    <div class="hero">
-      <h1 class="brand">VoicePunjab</h1>
-      <p class="tagline">AI-powered Punjabi voice generation platform.</p>
-    </div>
-
-    <div class="top">
-      <div>
-        <h1>Punjabi Text-to-Speech</h1>
-        <p class="subtitle">
-          Convert Gurmukhi text to MP3 instantly.
-          Type Punjabi directly or convert English Punjabi to Gurmukhi first.
-        </p>
-
-        <div class="pill" id="statusPill">Loading...</div>
-
-        <div class="brandBadge">
-          <span class="dot"></span>
-          <span>Free demo + account limits built-in (business-ready)</span>
+    <header class="hero">
+      <div class="brand">
+        <div class="logo">VP</div>
+        <div>
+          <h1>VoicePunjab</h1>
+          <p class="sub">Punjabi Text-to-Speech (Gurmukhi → MP3)</p>
         </div>
       </div>
 
-      <div class="auth">
-        <h3 id="authTitle">Login / Register</h3>
-
-        <div id="loggedOutBox">
-          <div class="row">
-            <label class="sr-only" for="email">Email</label>
-            <input id="email" placeholder="Email" type="email" />
-
-            <label class="sr-only" for="password">Password</label>
-            <input id="password" placeholder="Password (6+)" type="password" />
-          </div>
-
-          <div class="row mt10">
-            <button class="primary" id="loginBtn">Login</button>
-            <button class="secondary" id="registerBtn">Register</button>
-          </div>
-
-          <div class="small">Tip: Register to get a bigger free daily limit.</div>
-          <div class="err" id="authErr"></div>
-        </div>
-
-        <div id="loggedInBox" style="display:none;">
-          <div class="small">Signed in as <b id="meEmail"></b></div>
-          <div class="row mt10">
-            <button class="secondary" id="logoutBtn">Logout</button>
-          </div>
-        </div>
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <span>Checking server…</span>
       </div>
-    </div>
+    </header>
 
-    <div class="grid">
-      <!-- Option A -->
-      <div class="card">
+    <main class="grid">
+      <section class="card">
         <h2>Option A: Type Punjabi (Gurmukhi)</h2>
+        <textarea id="textA" placeholder="Type Punjabi (Gurmukhi) here…"></textarea>
 
-        <label class="sr-only" for="punjabiText">Punjabi text</label>
-        <textarea id="punjabiText">ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?</textarea>
+        <div class="row">
+          <label>
+            Voice
+            <select id="voice">
+              <option value="">Default</option>
+              <option value="pa-IN-Wavenet-A">Female (Wavenet A)</option>
+              <option value="pa-IN-Wavenet-B">Male (Wavenet B)</option>
+              <option value="pa-IN-Wavenet-C">Female (Wavenet C)</option>
+              <option value="pa-IN-Wavenet-D">Male (Wavenet D)</option>
+            </select>
+          </label>
 
-        <div class="row mt12">
-          <span class="label">Voice:</span>
-          <label class="sr-only" for="voiceA">Voice selection A</label>
-          <select id="voiceA">
-            <option value="FEMALE">Female</option>
-            <option value="MALE">Male</option>
-            <option value="NEUTRAL">Neutral</option>
-          </select>
+          <label>
+            Speed
+            <input id="speed" type="number" step="0.1" min="0.25" max="4" value="1" />
+          </label>
+
+          <label>
+            Pitch
+            <input id="pitch" type="number" step="1" min="-20" max="20" value="0" />
+          </label>
         </div>
 
-        <div class="row mt12">
-          <button class="primary" id="genA">Generate & Play</button>
-          <button class="secondary" id="dlA" disabled>Download MP3</button>
+        <div class="actions">
+          <button class="btn primary" id="btnPlayA">Generate & Play</button>
+          <button class="btn" id="btnDownloadA" disabled>Download MP3</button>
         </div>
 
-        <audio id="audioA" controls></audio>
-        <div class="small">Counts against daily limit.</div>
-      </div>
+        <audio id="playerA" controls></audio>
+        <p class="hint">Counts against daily limit.</p>
+      </section>
 
-      <!-- Option B -->
-      <div class="card">
-        <h2>Option B: Type English Punjabi → Convert → MP3</h2>
+      <section class="card">
+        <h2>Option B: English Punjabi → Convert → MP3</h2>
+        <textarea id="textB" placeholder="Type Roman/English Punjabi here…"></textarea>
 
-        <label class="sr-only" for="romanText">English Punjabi text</label>
-        <textarea id="romanText" autocorrect="off" autocapitalize="none" autocomplete="off" spellcheck="false">tusi kiven ho?</textarea>
-
-        <div class="preview">
-          <b>Converted Punjabi:</b>
-          <div id="converted" style="margin-top:8px;">(converting...)</div>
+        <div class="actions">
+          <button class="btn" id="btnConvert">Convert</button>
+          <button class="btn" id="btnPasteToA" disabled>Paste to Option A</button>
         </div>
 
-        <div class="row mt12">
-          <button class="secondary" id="copyBtn">Copy Punjabi</button>
-          <button class="secondary" id="pasteBtn">Paste to Option A</button>
+        <div class="converted">
+          <div class="label">Converted Punjabi:</div>
+          <div class="box" id="convertedText">(empty)</div>
         </div>
-
-        <div class="row mt12">
-          <span class="label">Voice:</span>
-          <label class="sr-only" for="voiceB">Voice selection B</label>
-          <select id="voiceB">
-            <option value="FEMALE">Female</option>
-            <option value="MALE">Male</option>
-            <option value="NEUTRAL">Neutral</option>
-          </select>
-        </div>
-
-        <div class="row mt12">
-          <button class="primary" id="genB">Generate & Play</button>
-          <button class="secondary" id="dlB" disabled>Download MP3</button>
-        </div>
-
-        <audio id="audioB" controls></audio>
-        <div class="small">Counts against daily limit.</div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 
 <script>
-  const statusPill = document.getElementById("statusPill");
+  // ✅ ONE PLACE to switch API:
+  // Local: keep "" (calls same host /api/tts)
+  // Cloud Run: set to "https://voicepunjab-api-777821135954.us-central1.run.app"
+  const API_BASE = ""; 
 
-  const loggedOutBox = document.getElementById("loggedOutBox");
-  const loggedInBox = document.getElementById("loggedInBox");
-  const meEmail = document.getElementById("meEmail");
-  const authErr = document.getElementById("authErr");
+  const statusEl = document.getElementById("status");
+  const setStatus = (ok, msg) => {
+    statusEl.classList.toggle("ok", !!ok);
+    statusEl.classList.toggle("bad", !ok);
+    statusEl.querySelector("span:last-child").textContent = msg;
+  };
 
-  async function api(path, body) {
-    const res = await fetch(path, {
+  async function checkHealth(){
+    try{
+      const res = await fetch(`${API_BASE}/health`);
+      if(!res.ok) throw new Error("health not ok");
+      setStatus(true, "Server connected ✅");
+    }catch(e){
+      setStatus(false, "Server not connected ❌");
+    }
+  }
+  checkHealth();
+
+  async function postJSON(url, data){
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {})
+      body: JSON.stringify(data),
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Request failed");
-    return data;
+    const json = await res.json().catch(() => ({}));
+    if(!res.ok) throw new Error(json.error || "Request failed");
+    return json;
   }
 
-  function base64ToBlob(base64, mimeType) {
-    const bytes = atob(base64);
-    const arr = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-    return new Blob([arr], { type: mimeType });
+  function base64ToBlob(base64, mime="audio/mpeg"){
+    const byteChars = atob(base64);
+    const byteNums = new Array(byteChars.length);
+    for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+    const byteArray = new Uint8Array(byteNums);
+    return new Blob([byteArray], { type: mime });
   }
 
-  function enableDownload(btn, b64, filename) {
-    const blob = base64ToBlob(b64, "audio/mpeg");
-    const url = URL.createObjectURL(blob);
-    btn.disabled = false;
-    btn.onclick = () => {
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      a.click();
-    };
-  }
+  let lastBlobA = null;
 
-  function setStatus(s) {
-    const plan = s.user ? "Free Account" : "Guest";
-    const remaining = (s.remaining ?? s.limit ?? 0);
-    const limit = (s.limit ?? 0);
+  document.getElementById("btnPlayA").addEventListener("click", async () => {
+    const text = document.getElementById("textA").value.trim();
+    const voiceName = document.getElementById("voice").value || undefined;
+    const speakingRate = Number(document.getElementById("speed").value || 1);
+    const pitch = Number(document.getElementById("pitch").value || 0);
 
-    statusPill.innerHTML = `<b>${plan}</b> · Remaining today: <b>${remaining}</b> / ${limit} chars`;
+    if(!text) return alert("Please type Punjabi text first.");
 
-    const disabled = Number(remaining) <= 0;
-    document.getElementById("genA").disabled = disabled;
-    document.getElementById("genB").disabled = disabled;
-  }
-
-  async function refreshMe() {
-    // If you don't have /api/me yet, this will still not crash UI
     try{
-      const res = await fetch("/api/me");
-      const data = await res.json();
-      setStatus(data);
+      const data = await postJSON(`${API_BASE}/api/tts`, { text, voiceName, speakingRate, pitch });
+      const blob = base64ToBlob(data.audioBase64);
+      lastBlobA = blob;
 
-      if (data.user) {
-        loggedOutBox.style.display = "none";
-        loggedInBox.style.display = "block";
-        meEmail.textContent = data.user.email;
-      } else {
-        loggedInBox.style.display = "none";
-        loggedOutBox.style.display = "block";
-      }
-    }catch{
-      statusPill.textContent = "Server connected (no /api/me yet)";
-    }
-  }
+      const url = URL.createObjectURL(blob);
+      const player = document.getElementById("playerA");
+      player.src = url;
+      await player.play();
 
-  // Auth (will work only if your server has these routes)
-  document.getElementById("registerBtn").addEventListener("click", async () => {
-    authErr.textContent = "";
-    try {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      await api("/api/auth/register", { email, password });
-      await refreshMe();
-    } catch (e) {
-      authErr.textContent = e.message;
+      document.getElementById("btnDownloadA").disabled = false;
+    }catch(e){
+      alert("TTS failed: " + e.message);
     }
   });
 
-  document.getElementById("loginBtn").addEventListener("click", async () => {
-    authErr.textContent = "";
-    try {
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      await api("/api/auth/login", { email, password });
-      await refreshMe();
-    } catch (e) {
-      authErr.textContent = e.message;
-    }
+  document.getElementById("btnDownloadA").addEventListener("click", () => {
+    if(!lastBlobA) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(lastBlobA);
+    a.download = "voicepunjab.mp3";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 
-  document.getElementById("logoutBtn").addEventListener("click", async () => {
+  document.getElementById("btnConvert").addEventListener("click", async () => {
+    const text = document.getElementById("textB").value.trim();
+    if(!text) return alert("Type English Punjabi first.");
     try{
-      await api("/api/auth/logout", {});
-      await refreshMe();
-    }catch{}
-  });
-
-  // Convert
-  const romanText = document.getElementById("romanText");
-  const converted = document.getElementById("converted");
-  let t = null;
-
-  async function convertNow() {
-    try {
-      const res = await fetch("/api/convert", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: romanText.value })
-      });
-      const data = await res.json();
-      converted.textContent = data.gurmukhi || "";
-      document.getElementById("dlB").disabled = true;
-    } catch {
-      converted.textContent = "Convert error (check server).";
-    }
-  }
-
-  romanText.addEventListener("input", () => {
-    clearTimeout(t);
-    t = setTimeout(convertNow, 150);
-  });
-  convertNow();
-
-  document.getElementById("copyBtn").addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(converted.textContent);
-      alert("Copied Punjabi!");
-    } catch {
-      alert("Copy failed. Copy manually from preview.");
+      const data = await postJSON(`${API_BASE}/api/convert`, { text });
+      document.getElementById("convertedText").textContent = data.gurmukhi || "(empty)";
+      document.getElementById("btnPasteToA").disabled = !(data.gurmukhi && data.gurmukhi.trim());
+    }catch(e){
+      alert("Convert failed: " + e.message);
     }
   });
 
-  document.getElementById("pasteBtn").addEventListener("click", () => {
-    document.getElementById("punjabiText").value = converted.textContent;
+  document.getElementById("btnPasteToA").addEventListener("click", () => {
+    const t = document.getElementById("convertedText").textContent;
+    if(!t || t === "(empty)") return;
+    document.getElementById("textA").value = t;
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
-
-  // TTS Option A
-  document.getElementById("genA").addEventListener("click", async () => {
-    const text = document.getElementById("punjabiText").value.trim();
-    if (!text) return alert("Enter Punjabi text first.");
-
-    const btn = document.getElementById("genA");
-    const old = btn.textContent;
-    btn.disabled = true; btn.textContent = "Generating...";
-
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "TTS error");
-
-      const audio = document.getElementById("audioA");
-      audio.src = `data:audio/mp3;base64,${data.audioBase64}`;
-      await audio.play();
-      enableDownload(document.getElementById("dlA"), data.audioBase64, `punjabi-A-${Date.now()}.mp3`);
-      await refreshMe();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      btn.disabled = false; btn.textContent = old;
-    }
-  });
-
-  // TTS Option B
-  document.getElementById("genB").addEventListener("click", async () => {
-    const text = converted.textContent.trim();
-    if (!text) return alert("Type English Punjabi first.");
-
-    const btn = document.getElementById("genB");
-    const old = btn.textContent;
-    btn.disabled = true; btn.textContent = "Generating...";
-
-    try {
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "TTS error");
-
-      const audio = document.getElementById("audioB");
-      audio.src = `data:audio/mp3;base64,${data.audioBase64}`;
-      await audio.play();
-      enableDownload(document.getElementById("dlB"), data.audioBase64, `punjabi-B-${Date.now()}.mp3`);
-      await refreshMe();
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      btn.disabled = false; btn.textContent = old;
-    }
-  });
-
-  refreshMe();
 </script>
 </body>
 </html>
