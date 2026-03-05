@@ -1,24 +1,17 @@
 // server.js
 "use strict";
 
-require("dotenv").config();
-
-const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
+
+require("dotenv").config({ override: true });
+
+const express = require("express");
 const rateLimit = require("express-rate-limit");
 const textToSpeech = require("@google-cloud/text-to-speech");
 
-// If credentials are provided as JSON in env, write them to a temp file
-if (process.env.GOOGLE_CREDENTIALS_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  const credsPath = path.join(os.tmpdir(), "gcp-tts-creds.json");
-  fs.writeFileSync(credsPath, process.env.GOOGLE_CREDENTIALS_JSON, "utf8");
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = credsPath;
-}
-
 const app = express();
-const client = new textToSpeech.TextToSpeechClient();
 
 // ---------- SETTINGS ----------
 const PORT = Number(process.env.PORT || 8080);
@@ -30,14 +23,47 @@ const REQUIRE_API_KEY = API_KEY.length > 0;
 // Basic CORS (safe default)
 const ALLOWED_ORIGIN = (process.env.ALLOWED_ORIGIN || "*").trim();
 
+// ---------- GOOGLE CREDS (LOCAL FILE or ENV JSON) ----------
+// 1) If Hostinger/Docker provides JSON in env: GOOGLE_CREDENTIALS_JSON, write to temp file.
+// 2) Otherwise use GOOGLE_APPLICATION_CREDENTIALS (usually from .env) as-is.
+// 3) If GOOGLE_APPLICATION_CREDENTIALS is relative, resolve it from this folder.
+(function setupGoogleCreds() {
+  if (process.env.GOOGLE_CREDENTIALS_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const credsPath = path.join(os.tmpdir(), "gcp-tts-creds.json");
+    fs.writeFileSync(credsPath, process.env.GOOGLE_CREDENTIALS_JSON, "utf8");
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = credsPath;
+  }
+
+  const creds = (process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
+  if (!creds) {
+    console.warn(
+      "⚠️ GOOGLE_APPLICATION_CREDENTIALS not set. If you're on Hostinger, set GOOGLE_CREDENTIALS_JSON."
+    );
+    return;
+  }
+
+  // If relative path like ./keys/google_key.json, resolve it from project directory
+  if (!path.isAbsolute(creds)) {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = path.resolve(__dirname, creds);
+  }
+
+  // Helpful crash-prevention: verify file exists (for file-based creds)
+  const finalPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (finalPath && !finalPath.includes(os.tmpdir()) && !fs.existsSync(finalPath)) {
+    console.error("❌ Google credentials file not found at:", finalPath);
+    console.error("   Fix .env path OR put the json file there OR use GOOGLE_CREDENTIALS_JSON.");
+    process.exit(1);
+  }
+})();
+
+// Create client AFTER creds setup
+const client = new textToSpeech.TextToSpeechClient();
+
 // ---------- MIDDLEWARE ----------
 app.use(express.json({ limit: "1mb" }));
 
 app.use((req, res, next) => {
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    ALLOWED_ORIGIN === "*" ? "*" : ALLOWED_ORIGIN
-  );
+  res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN === "*" ? "*" : ALLOWED_ORIGIN);
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-api-key");
   if (req.method === "OPTIONS") return res.sendStatus(204);
@@ -69,19 +95,13 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
 // ---------- SIMPLE CONVERT ENDPOINT ----------
-// NOTE: This is a lightweight placeholder so your frontend won't break.
-// It returns the same text if it's already Punjabi, otherwise returns a basic cleaned version.
-// (Later we can add a real transliteration library that actually exists on npm.)
 app.post("/api/convert", (req, res) => {
   const text = String(req.body?.text || "").trim();
   if (!text) return res.json({ gurmukhi: "" });
 
-  // If it already contains Gurmukhi letters, just return as-is
   const hasGurmukhi = /[\u0A00-\u0A7F]/.test(text);
   if (hasGurmukhi) return res.json({ gurmukhi: text });
 
-  // Simple safe fallback: return the same text (so UI still works)
-  // You can later replace this with a real transliteration solution.
   return res.json({ gurmukhi: text });
 });
 
@@ -124,8 +144,7 @@ app.post("/api/tts", ttsLimiter, requireApiKey, async (req, res) => {
   }
 });
 
-// ✅ Express 5-safe fallback (replaces app.get("*", ...))
-// This serves your frontend for non-API routes.
+// Fallback to frontend for non-API routes
 app.get(/^(?!\/api\/|\/health).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -133,4 +152,12 @@ app.get(/^(?!\/api\/|\/health).*/, (req, res) => {
 // ---------- START ----------
 app.listen(PORT, () => {
   console.log(`Punjabi TTS API running on port ${PORT}`);
+  console.log("Using creds:", process.env.GOOGLE_APPLICATION_CREDENTIALS ? "✅ set" : "❌ missing");
+});
+
+app.get("/debug/env", (req, res) => {
+  res.json({
+    hasTest: process.env.TEST_VAR || null,
+    keys: Object.keys(process.env).filter(k => k.includes("GOOGLE"))
+  });
 });
