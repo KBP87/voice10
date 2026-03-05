@@ -1,17 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
- <div class="hero">
-  <h1 class="brand">VoicePunjab</h1>
-  <p class="tagline">
-    AI-powered Punjabi voice generation platform.
-  </p>
-</div>
-
-
+  <title>VoicePunjab — Punjabi Text-to-Speech</title>
 
   <style>
     :root{
@@ -42,29 +34,24 @@
       color:var(--text);
     }
 
-    .hero {
-  text-align: center;
-  margin-bottom: 30px;
-}
+    .wrap{ max-width: 1150px; margin: 0 auto; }
 
-.brand {
-  font-size: 42px;
-  font-weight: 800;
-  margin: 0;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+    .hero { text-align: center; margin-bottom: 30px; }
 
-.tagline {
-  margin-top: 10px;
-  font-size: 15px;
-  color: #6b7280;
-}
-    .wrap{
-      max-width: 1150px;
-      margin: 0 auto;
+    .brand {
+      font-size: 42px;
+      font-weight: 800;
+      margin: 0;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .tagline {
+      margin-top: 10px;
+      font-size: 15px;
+      color: #6b7280;
     }
 
     .top{
@@ -104,6 +91,21 @@
       min-height: 40px;
     }
 
+    .brandBadge{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background: linear-gradient(135deg, var(--primary), #7c3aed);
+      box-shadow: 0 6px 14px rgba(79,70,229,0.25);
+    }
+
     .auth{
       background: rgba(255,255,255,0.85);
       backdrop-filter: blur(6px);
@@ -126,6 +128,18 @@
       gap:10px;
       flex-wrap:wrap;
       align-items:center;
+    }
+
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
     }
 
     input{
@@ -224,6 +238,15 @@
       box-shadow: 0 0 0 4px rgba(79,70,229,0.12);
     }
 
+    .label{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+    }
+
+    .mt10{ margin-top:10px; }
+    .mt12{ margin-top:12px; }
+
     audio{
       width: 100%;
       margin-top: 10px;
@@ -253,37 +276,22 @@
       margin-top: 10px;
       line-height:1.25;
     }
-
-    .hr{
-      height:1px;
-      background: var(--border);
-      margin: 10px 0 12px;
-    }
-
-    .brandBadge{
-      display:inline-flex;
-      align-items:center;
-      gap:10px;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .dot{
-      width:10px; height:10px; border-radius:50%;
-      background: linear-gradient(135deg, var(--primary), #7c3aed);
-      box-shadow: 0 6px 14px rgba(79,70,229,0.25);
-    }
   </style>
 </head>
 
 <body>
   <div class="wrap">
+
+    <div class="hero">
+      <h1 class="brand">VoicePunjab</h1>
+      <p class="tagline">AI-powered Punjabi voice generation platform.</p>
+    </div>
+
     <div class="top">
       <div>
         <h1>Punjabi Text-to-Speech</h1>
         <p class="subtitle">
-         Convert Gurmukhi text to MP3 instantly.
+          Convert Gurmukhi text to MP3 instantly.
           Type Punjabi directly or convert English Punjabi to Gurmukhi first.
         </p>
 
@@ -300,20 +308,25 @@
 
         <div id="loggedOutBox">
           <div class="row">
+            <label class="sr-only" for="email">Email</label>
             <input id="email" placeholder="Email" type="email" />
+
+            <label class="sr-only" for="password">Password</label>
             <input id="password" placeholder="Password (6+)" type="password" />
           </div>
-          <div class="row" style="margin-top:10px;">
+
+          <div class="row mt10">
             <button class="primary" id="loginBtn">Login</button>
             <button class="secondary" id="registerBtn">Register</button>
           </div>
+
           <div class="small">Tip: Register to get a bigger free daily limit.</div>
           <div class="err" id="authErr"></div>
         </div>
 
         <div id="loggedInBox" style="display:none;">
           <div class="small">Signed in as <b id="meEmail"></b></div>
-          <div class="row" style="margin-top:10px;">
+          <div class="row mt10">
             <button class="secondary" id="logoutBtn">Logout</button>
           </div>
         </div>
@@ -325,10 +338,12 @@
       <div class="card">
         <h2>Option A: Type Punjabi (Gurmukhi)</h2>
 
+        <label class="sr-only" for="punjabiText">Punjabi text</label>
         <textarea id="punjabiText">ਸਤ ਸ੍ਰੀ ਅਕਾਲ! ਤੁਸੀਂ ਕਿਵੇਂ ਹੋ?</textarea>
 
-        <div class="row" style="margin-top:12px;">
-          <span style="font-size:13px;color:var(--muted);font-weight:700;">Voice:</span>
+        <div class="row mt12">
+          <span class="label">Voice:</span>
+          <label class="sr-only" for="voiceA">Voice selection A</label>
           <select id="voiceA">
             <option value="FEMALE">Female</option>
             <option value="MALE">Male</option>
@@ -336,7 +351,7 @@
           </select>
         </div>
 
-        <div class="row" style="margin-top:12px;">
+        <div class="row mt12">
           <button class="primary" id="genA">Generate & Play</button>
           <button class="secondary" id="dlA" disabled>Download MP3</button>
         </div>
@@ -349,6 +364,7 @@
       <div class="card">
         <h2>Option B: Type English Punjabi → Convert → MP3</h2>
 
+        <label class="sr-only" for="romanText">English Punjabi text</label>
         <textarea id="romanText" autocorrect="off" autocapitalize="none" autocomplete="off" spellcheck="false">tusi kiven ho?</textarea>
 
         <div class="preview">
@@ -356,13 +372,14 @@
           <div id="converted" style="margin-top:8px;">(converting...)</div>
         </div>
 
-        <div class="row" style="margin-top:12px;">
+        <div class="row mt12">
           <button class="secondary" id="copyBtn">Copy Punjabi</button>
           <button class="secondary" id="pasteBtn">Paste to Option A</button>
         </div>
 
-        <div class="row" style="margin-top:12px;">
-          <span style="font-size:13px;color:var(--muted);font-weight:700;">Voice:</span>
+        <div class="row mt12">
+          <span class="label">Voice:</span>
+          <label class="sr-only" for="voiceB">Voice selection B</label>
           <select id="voiceB">
             <option value="FEMALE">Female</option>
             <option value="MALE">Male</option>
@@ -370,7 +387,7 @@
           </select>
         </div>
 
-        <div class="row" style="margin-top:12px;">
+        <div class="row mt12">
           <button class="primary" id="genB">Generate & Play</button>
           <button class="secondary" id="dlB" disabled>Download MP3</button>
         </div>
@@ -420,30 +437,38 @@
   }
 
   function setStatus(s) {
-    const plan = s.isLoggedIn ? "Free Account" : "Guest";
-    statusPill.innerHTML = `<b>${plan}</b> · Remaining today: <b>${s.remaining}</b> / ${s.limit} chars`;
+    const plan = s.user ? "Free Account" : "Guest";
+    const remaining = (s.remaining ?? s.limit ?? 0);
+    const limit = (s.limit ?? 0);
 
-    const disabled = Number(s.remaining) <= 0;
+    statusPill.innerHTML = `<b>${plan}</b> · Remaining today: <b>${remaining}</b> / ${limit} chars`;
+
+    const disabled = Number(remaining) <= 0;
     document.getElementById("genA").disabled = disabled;
     document.getElementById("genB").disabled = disabled;
   }
 
   async function refreshMe() {
-    const res = await fetch("/api/me");
-    const data = await res.json();
-    setStatus(data);
+    // If you don't have /api/me yet, this will still not crash UI
+    try{
+      const res = await fetch("/api/me");
+      const data = await res.json();
+      setStatus(data);
 
-    if (data.user) {
-      loggedOutBox.style.display = "none";
-      loggedInBox.style.display = "block";
-      meEmail.textContent = data.user.email;
-    } else {
-      loggedInBox.style.display = "none";
-      loggedOutBox.style.display = "block";
+      if (data.user) {
+        loggedOutBox.style.display = "none";
+        loggedInBox.style.display = "block";
+        meEmail.textContent = data.user.email;
+      } else {
+        loggedInBox.style.display = "none";
+        loggedOutBox.style.display = "block";
+      }
+    }catch{
+      statusPill.textContent = "Server connected (no /api/me yet)";
     }
   }
 
-  // Auth
+  // Auth (will work only if your server has these routes)
   document.getElementById("registerBtn").addEventListener("click", async () => {
     authErr.textContent = "";
     try {
@@ -469,8 +494,10 @@
   });
 
   document.getElementById("logoutBtn").addEventListener("click", async () => {
-    await api("/api/auth/logout", {});
-    await refreshMe();
+    try{
+      await api("/api/auth/logout", {});
+      await refreshMe();
+    }catch{}
   });
 
   // Convert
@@ -517,7 +544,6 @@
     const text = document.getElementById("punjabiText").value.trim();
     if (!text) return alert("Enter Punjabi text first.");
 
-    const gender = document.getElementById("voiceA").value;
     const btn = document.getElementById("genA");
     const old = btn.textContent;
     btn.disabled = true; btn.textContent = "Generating...";
@@ -526,7 +552,7 @@
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, gender })
+        body: JSON.stringify({ text })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "TTS error");
@@ -535,21 +561,19 @@
       audio.src = `data:audio/mp3;base64,${data.audioBase64}`;
       await audio.play();
       enableDownload(document.getElementById("dlA"), data.audioBase64, `punjabi-A-${Date.now()}.mp3`);
-      setStatus(data);
+      await refreshMe();
     } catch (e) {
       alert(e.message);
-      await refreshMe();
     } finally {
       btn.disabled = false; btn.textContent = old;
     }
   });
 
-  // TTS Option B (converted Punjabi)
+  // TTS Option B
   document.getElementById("genB").addEventListener("click", async () => {
     const text = converted.textContent.trim();
     if (!text) return alert("Type English Punjabi first.");
 
-    const gender = document.getElementById("voiceB").value;
     const btn = document.getElementById("genB");
     const old = btn.textContent;
     btn.disabled = true; btn.textContent = "Generating...";
@@ -558,7 +582,7 @@
       const res = await fetch("/api/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, gender })
+        body: JSON.stringify({ text })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "TTS error");
@@ -567,10 +591,9 @@
       audio.src = `data:audio/mp3;base64,${data.audioBase64}`;
       await audio.play();
       enableDownload(document.getElementById("dlB"), data.audioBase64, `punjabi-B-${Date.now()}.mp3`);
-      setStatus(data);
+      await refreshMe();
     } catch (e) {
       alert(e.message);
-      await refreshMe();
     } finally {
       btn.disabled = false; btn.textContent = old;
     }
