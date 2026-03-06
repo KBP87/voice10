@@ -30,6 +30,8 @@ const GOOGLE_APPLICATION_CREDENTIALS =
 const GOOGLE_CREDENTIALS_JSON =
   process.env.GOOGLE_CREDENTIALS_JSON || "";
 
+const ADMIN_TOKEN = String(process.env.ADMIN_TOKEN || "").trim();
+
 const clientConfig = {
   projectId: GOOGLE_CLOUD_PROJECT
 };
@@ -121,6 +123,22 @@ function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_usage_logs_client_endpoint_date
       ON usage_logs (client_id, endpoint, created_at)
     `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS request_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        endpoint TEXT NOT NULL,
+        cache_status TEXT NOT NULL,
+        char_count INTEGER NOT NULL,
+        client_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_request_logs_endpoint_date
+      ON request_logs (endpoint, created_at)
+    `);
   });
 }
 
@@ -129,6 +147,15 @@ function dbGet(sql, params = []) {
     db.get(sql, params, (err, row) => {
       if (err) reject(err);
       else resolve(row);
+    });
+  });
+}
+
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
     });
   });
 }
@@ -196,6 +223,20 @@ function getClientId(req) {
   return req.ip || "unknown";
 }
 
+function requireAdmin(req, res, next) {
+  const token =
+    String(req.headers["x-admin-token"] || "").trim() ||
+    String(req.query.token || "").trim();
+
+  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+    return res.status(401).json({
+      error: "Unauthorized"
+    });
+  }
+
+  next();
+}
+
 async function getTodayUsage(clientId, endpoint) {
   const row = await dbGet(
     `
@@ -218,6 +259,16 @@ async function logUsage(clientId, endpoint, charCount) {
       VALUES (?, ?, ?)
     `,
     [clientId, endpoint, charCount]
+  );
+}
+
+async function logRequest(endpoint, cacheStatus, charCount, clientId) {
+  await dbRun(
+    `
+      INSERT INTO request_logs (endpoint, cache_status, char_count, client_id)
+      VALUES (?, ?, ?, ?)
+    `,
+    [endpoint, cacheStatus, charCount, clientId]
   );
 }
 
@@ -285,7 +336,7 @@ app.use((req, res, next) => {
   }
 
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Token");
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -351,6 +402,152 @@ app.get("/api/usage", async (req, res) => {
   }
 });
 
+app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+  try {
+    const [
+      translateToday,
+      ttsToday,
+      translateCharsToday,
+      ttsCharsToday,
+      translateCacheHitsToday,
+      translateCacheMissesToday,
+      ttsCacheHitsToday,
+      ttsCacheMissesToday,
+      translationCacheCount,
+      ttsCacheCount,
+      usageLogCount,
+      requestLogCount,
+      topClientsToday
+    ] = await Promise.all([
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'convert'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'tts'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COALESCE(SUM(char_count), 0) AS total
+          FROM usage_logs
+          WHERE endpoint = 'convert'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COALESCE(SUM(char_count), 0) AS total
+          FROM usage_logs
+          WHERE endpoint = 'tts'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'convert'
+            AND cache_status = 'hit'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'convert'
+            AND cache_status = 'miss'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'tts'
+            AND cache_status = 'hit'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(
+        `
+          SELECT COUNT(*) AS total
+          FROM request_logs
+          WHERE endpoint = 'tts'
+            AND cache_status = 'miss'
+            AND date(created_at) = date('now', 'localtime')
+        `
+      ),
+      dbGet(`SELECT COUNT(*) AS total FROM translation_cache`),
+      dbGet(`SELECT COUNT(*) AS total FROM tts_cache`),
+      dbGet(`SELECT COUNT(*) AS total FROM usage_logs`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs`),
+      dbAll(
+        `
+          SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
+          FROM request_logs
+          WHERE date(created_at) = date('now', 'localtime')
+          GROUP BY client_id
+          ORDER BY requests DESC, chars DESC
+          LIMIT 5
+        `
+      )
+    ]);
+
+    const translateHits = Number(translateCacheHitsToday?.total || 0);
+    const translateMisses = Number(translateCacheMissesToday?.total || 0);
+    const ttsHits = Number(ttsCacheHitsToday?.total || 0);
+    const ttsMisses = Number(ttsCacheMissesToday?.total || 0);
+
+    const translateTotalForRate = translateHits + translateMisses;
+    const ttsTotalForRate = ttsHits + ttsMisses;
+
+    return res.json({
+      today: {
+        translate_requests: Number(translateToday?.total || 0),
+        tts_requests: Number(ttsToday?.total || 0),
+        translate_characters: Number(translateCharsToday?.total || 0),
+        tts_characters: Number(ttsCharsToday?.total || 0),
+        translate_cache_hits: translateHits,
+        translate_cache_misses: translateMisses,
+        tts_cache_hits: ttsHits,
+        tts_cache_misses: ttsMisses,
+        translate_cache_hit_rate: translateTotalForRate
+          ? `${Math.round((translateHits / translateTotalForRate) * 100)}%`
+          : "0%",
+        tts_cache_hit_rate: ttsTotalForRate
+          ? `${Math.round((ttsHits / ttsTotalForRate) * 100)}%`
+          : "0%"
+      },
+      totals: {
+        translation_cache_records: Number(translationCacheCount?.total || 0),
+        tts_cache_records: Number(ttsCacheCount?.total || 0),
+        usage_log_rows: Number(usageLogCount?.total || 0),
+        request_log_rows: Number(requestLogCount?.total || 0)
+      },
+      limits: {
+        daily_translate_char_limit: DAILY_TRANSLATE_CHAR_LIMIT,
+        daily_tts_char_limit: DAILY_TTS_CHAR_LIMIT
+      },
+      top_clients_today: topClientsToday || []
+    });
+  } catch (err) {
+    console.error("admin stats error:", err);
+    return res.status(500).json({
+      error: "Failed to load admin stats."
+    });
+  }
+});
+
 app.post("/api/convert", async (req, res) => {
   const rawText = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();
@@ -408,6 +605,12 @@ app.post("/api/convert", async (req, res) => {
     const result = await translateEnglishToPunjabi(rawText);
 
     await logUsage(clientId, "convert", rawText.length);
+    await logRequest(
+      "convert",
+      result.cached ? "hit" : "miss",
+      rawText.length,
+      clientId
+    );
 
     clearTimeout(kill);
     return res.json({
@@ -497,6 +700,7 @@ app.post("/api/tts", async (req, res) => {
 
       if (fs.existsSync(cachedFilePath)) {
         await logUsage(clientId, "tts", rawText.length);
+        await logRequest("tts", "hit", rawText.length, clientId);
 
         return res.json({
           audioUrl: `/cache/${existing.file_name}`,
@@ -532,6 +736,7 @@ app.post("/api/tts", async (req, res) => {
     );
 
     await logUsage(clientId, "tts", rawText.length);
+    await logRequest("tts", "miss", rawText.length, clientId);
 
     return res.json({
       audioUrl: `/cache/${fileName}`,
@@ -573,4 +778,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("CACHE_DIR =", CACHE_DIR);
   console.log("DAILY_TRANSLATE_CHAR_LIMIT =", DAILY_TRANSLATE_CHAR_LIMIT);
   console.log("DAILY_TTS_CHAR_LIMIT =", DAILY_TTS_CHAR_LIMIT);
+  console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
 });

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VoicePunjab Admin</title>
+
+<style>
+
+body{
+font-family: Arial;
+background:#f4f6fb;
+padding:40px;
+}
+
+h1{
+margin-bottom:20px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:20px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 5px 12px rgba(0,0,0,.08);
+}
+
+.card h3{
+margin-top:0;
+font-size:18px;
+color:#555;
+}
+
+.big{
+font-size:32px;
+font-weight:bold;
+margin-top:10px;
+}
+
+.small{
+color:#777;
+margin-top:6px;
+}
+
+button{
+padding:10px 18px;
+border:none;
+border-radius:6px;
+background:#4c6ef5;
+color:white;
+cursor:pointer;
+margin-bottom:25px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>VoicePunjab Admin Dashboard</h1>
+
+<button onclick="loadStats()">Refresh</button>
+
+<div class="grid">
+
+<div class="card">
+<h3>TTS Requests Today</h3>
+<div class="big" id="ttsRequests">-</div>
+</div>
+
+<div class="card">
+<h3>Translate Requests Today</h3>
+<div class="big" id="trRequests">-</div>
+</div>
+
+<div class="card">
+<h3>TTS Characters Today</h3>
+<div class="big" id="ttsChars">-</div>
+</div>
+
+<div class="card">
+<h3>Translate Characters Today</h3>
+<div class="big" id="trChars">-</div>
+</div>
+
+<div class="card">
+<h3>TTS Cache Hit Rate</h3>
+<div class="big" id="ttsHit">-</div>
+</div>
+
+<div class="card">
+<h3>Translate Cache Hit Rate</h3>
+<div class="big" id="trHit">-</div>
+</div>
+
+<div class="card">
+<h3>Translation Cache Records</h3>
+<div class="big" id="trCache">-</div>
+</div>
+
+<div class="card">
+<h3>TTS Cache Records</h3>
+<div class="big" id="ttsCache">-</div>
+</div>
+
+</div>
+
+<script>
+
+const TOKEN="voicepunjab_admin_2026_secure"
+
+async function loadStats(){
+
+const res=await fetch(`/api/admin/stats?token=${TOKEN}`)
+const data=await res.json()
+
+document.getElementById("ttsRequests").innerText=data.today.tts_requests
+document.getElementById("trRequests").innerText=data.today.translate_requests
+
+document.getElementById("ttsChars").innerText=data.today.tts_characters
+document.getElementById("trChars").innerText=data.today.translate_characters
+
+document.getElementById("ttsHit").innerText=data.today.tts_cache_hit_rate
+document.getElementById("trHit").innerText=data.today.translate_cache_hit_rate
+
+document.getElementById("trCache").innerText=data.totals.translation_cache_records
+document.getElementById("ttsCache").innerText=data.totals.tts_cache_records
+
+}
+
+loadStats()
+
+</script>
+
+</body>
+</html>
