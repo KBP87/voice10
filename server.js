@@ -33,7 +33,14 @@ const clientConfig = {
 
 if (GOOGLE_CREDENTIALS_JSON) {
   try {
-    clientConfig.credentials = JSON.parse(GOOGLE_CREDENTIALS_JSON);
+    const creds = JSON.parse(GOOGLE_CREDENTIALS_JSON);
+
+    if (creds.private_key) {
+      creds.private_key = creds.private_key.replace(/\\n/g, "\n");
+    }
+
+    clientConfig.credentials = creds;
+
   } catch (err) {
     console.error("Failed to parse GOOGLE_CREDENTIALS_JSON:", err.message);
   }
