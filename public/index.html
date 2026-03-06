@@ -137,7 +137,7 @@
   const btnClearKeyboard = document.getElementById("btnClearKeyboard");
   const btnSendKeyboardToA = document.getElementById("btnSendKeyboardToA");
 
-  let lastObjectUrl = null;
+  let lastAudioUrl = "";
 
   function setStatus(ok, msg) {
     statusEl.classList.toggle("ok", !!ok);
@@ -244,31 +244,18 @@
 
       const data = await res.json();
 
-      if (!res.ok || !data.audioBase64) {
+      if (!res.ok || !data.audioUrl) {
         throw new Error(data.error || "TTS failed");
       }
 
-      const binary = atob(data.audioBase64);
-      const bytes = new Uint8Array(binary.length);
-
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-
-      const blob = new Blob([bytes], { type: "audio/mpeg" });
-
-      if (lastObjectUrl) {
-        URL.revokeObjectURL(lastObjectUrl);
-      }
-
-      lastObjectUrl = URL.createObjectURL(blob);
-      playerA.src = lastObjectUrl;
+      lastAudioUrl = `${API_BASE}${data.audioUrl}`;
+      playerA.src = lastAudioUrl;
       await playerA.play();
 
       btnDlA.disabled = false;
       btnDlA.onclick = () => {
         const a = document.createElement("a");
-        a.href = lastObjectUrl;
+        a.href = lastAudioUrl;
         a.download = "voicepunjab.mp3";
         a.click();
       };
@@ -322,6 +309,7 @@
   buildKeyboard();
 
   btnSpace.addEventListener("click", () => insertAtCursor(keyboardText, " "));
+
   btnBackspace.addEventListener("click", () => {
     const start = keyboardText.selectionStart;
     const end = keyboardText.selectionEnd;
