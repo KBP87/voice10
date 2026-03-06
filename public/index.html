@@ -1,178 +1,353 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>VoicePunjab Punjabi TTS</title>
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
+
 <body>
   <div class="wrap">
-    <header class="hero">
+    <header class="topbar">
       <div class="brand">
         <div class="logo">VP</div>
         <div>
-          <h1>VoicePunjab</h1>
-          <p class="sub">Punjabi Text-to-Speech (Gurmukhi → MP3)</p>
+          <div class="title">VoicePunjab</div>
+          <div class="subtitle">Punjabi Text-to-Speech (Gurmukhi → MP3)</div>
         </div>
       </div>
-
-      <div class="status" id="status">
-        <span class="dot"></span>
-        <span>Checking server…</span>
-      </div>
+      <div id="status" class="status"><span>Checking server…</span></div>
     </header>
 
     <main class="grid">
+      <!-- LEFT -->
       <section class="card">
-        <h2>Option A: Type Punjabi (Gurmukhi)</h2>
-        <textarea id="textA" placeholder="Type Punjabi (Gurmukhi) here…"></textarea>
+        <h2>Option A: Final Punjabi Text (Gurmukhi)</h2>
+        <textarea id="textA" rows="8" placeholder="ਇੱਥੇ ਪੰਜਾਬੀ (ਗੁਰਮੁਖੀ) ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."></textarea>
 
-        <div class="row">
-          <label>
-            Voice
-            <select id="voice">
-              <option value="">Default</option>
-              <option value="pa-IN-Wavenet-A">Female (Wavenet A)</option>
-              <option value="pa-IN-Wavenet-B">Male (Wavenet B)</option>
-              <option value="pa-IN-Wavenet-C">Female (Wavenet C)</option>
-              <option value="pa-IN-Wavenet-D">Male (Wavenet D)</option>
+        <div class="row3">
+          <div>
+            <label>Voice</label>
+            <select id="voiceA">
+              <option value="pa-IN-Standard-A">Female (Standard A)</option>
+              <option value="pa-IN-Standard-B">Male (Standard B)</option>
             </select>
-          </label>
-
-          <label>
-            Speed
-            <input id="speed" type="number" step="0.1" min="0.25" max="4" value="1" />
-          </label>
-
-          <label>
-            Pitch
-            <input id="pitch" type="number" step="1" min="-20" max="20" value="0" />
-          </label>
+          </div>
+          <div>
+            <label>Speed</label>
+            <input id="speedA" type="number" value="1" step="0.1" min="0.25" max="4" />
+          </div>
+          <div>
+            <label>Pitch</label>
+            <input id="pitchA" type="number" value="0" step="1" min="-20" max="20" />
+          </div>
         </div>
 
-        <div class="actions">
-          <button class="btn primary" id="btnPlayA">Generate & Play</button>
-          <button class="btn" id="btnDownloadA" disabled>Download MP3</button>
+        <div class="btnrow">
+          <button id="btnGenA" class="primary">Generate & Play</button>
+          <button id="btnDlA" class="secondary" disabled>Download MP3</button>
         </div>
 
-        <audio id="playerA" controls></audio>
-        <p class="hint">Counts against daily limit.</p>
+        <audio id="playerA" controls preload="none"></audio>
+        <div class="small">Speech is generated only from Punjabi text in Gurmukhi.</div>
       </section>
 
+      <!-- RIGHT -->
       <section class="card">
-        <h2>Option B: English Punjabi → Convert → MP3</h2>
-        <textarea id="textB" placeholder="Type Roman/English Punjabi here…"></textarea>
+        <h2>Option B: English to Punjabi</h2>
 
-        <div class="actions">
-          <button class="btn" id="btnConvert">Convert</button>
-          <button class="btn" id="btnPasteToA" disabled>Paste to Option A</button>
+        <label class="labelBlock">Type English</label>
+        <textarea
+          id="textB"
+          rows="8"
+          placeholder="Type English here, for example: Hello, how are you?"
+        ></textarea>
+
+        <div class="btnrow">
+          <button id="btnConvert" class="secondary" type="button">Convert to Punjabi</button>
+          <button id="btnPasteToA" class="secondary" type="button">Paste to Option A</button>
         </div>
 
-        <div class="converted">
-          <div class="label">Converted Punjabi:</div>
-          <div class="box" id="convertedText">(empty)</div>
+        <label class="labelBlock">Converted Punjabi</label>
+        <textarea
+          id="convertedB"
+          rows="5"
+          placeholder="Punjabi translation will appear here..."
+        ></textarea>
+
+        <div id="convertNote" class="small">
+          Use this section for English sentences. Review the Punjabi result before generating speech.
         </div>
       </section>
     </main>
+
+    <!-- KEYBOARD SECTION -->
+    <section class="card keyboard-card">
+      <h2>Option C: Punjabi Keyboard</h2>
+      <div class="small keyboard-help">
+        If translation is not perfect, type Punjabi manually here using the on-screen keyboard, then send it to Option A.
+      </div>
+
+      <textarea
+        id="keyboardText"
+        rows="5"
+        placeholder="ਇੱਥੇ ਪੰਜਾਬੀ ਟਾਈਪ ਕਰੋ..."
+      ></textarea>
+
+      <div class="btnrow keyboard-actions">
+        <button class="secondary" id="btnSpace" type="button">Space</button>
+        <button class="secondary" id="btnBackspace" type="button">Backspace</button>
+        <button class="secondary" id="btnClearKeyboard" type="button">Clear</button>
+        <button class="secondary" id="btnSendKeyboardToA" type="button">Send to Option A</button>
+      </div>
+
+      <div id="keyboard" class="keyboard"></div>
+    </section>
   </div>
 
 <script>
-  // ✅ ONE PLACE to switch API:
-  // Local: keep "" (calls same host /api/tts)
-  // Cloud Run: set to "https://voicepunjab-api-777821135954.us-central1.run.app"
-  const API_BASE = "https://voicepunjab-api-777821135954.us-central1.run.app"; 
+  const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app";
+
+  const isLocal =
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1";
+
+  const API_BASE = isLocal ? "" : CLOUD_RUN;
 
   const statusEl = document.getElementById("status");
-  const setStatus = (ok, msg) => {
+  const textA = document.getElementById("textA");
+  const voiceA = document.getElementById("voiceA");
+  const speedA = document.getElementById("speedA");
+  const pitchA = document.getElementById("pitchA");
+  const btnGenA = document.getElementById("btnGenA");
+  const btnDlA = document.getElementById("btnDlA");
+  const playerA = document.getElementById("playerA");
+
+  const textB = document.getElementById("textB");
+  const btnConvert = document.getElementById("btnConvert");
+  const btnPasteToA = document.getElementById("btnPasteToA");
+  const convertedB = document.getElementById("convertedB");
+  const convertNote = document.getElementById("convertNote");
+
+  const keyboardText = document.getElementById("keyboardText");
+  const keyboard = document.getElementById("keyboard");
+  const btnSpace = document.getElementById("btnSpace");
+  const btnBackspace = document.getElementById("btnBackspace");
+  const btnClearKeyboard = document.getElementById("btnClearKeyboard");
+  const btnSendKeyboardToA = document.getElementById("btnSendKeyboardToA");
+
+  let lastObjectUrl = null;
+
+  function setStatus(ok, msg) {
     statusEl.classList.toggle("ok", !!ok);
     statusEl.classList.toggle("bad", !ok);
-    statusEl.querySelector("span:last-child").textContent = msg;
-  };
+    statusEl.querySelector("span").textContent = msg;
+  }
 
-  async function checkHealth(){
-    try{
-      const res = await fetch(`${API_BASE}/health`);
-      if(!res.ok) throw new Error("health not ok");
-      setStatus(true, "Server connected ✅");
-    }catch(e){
-      setStatus(false, "Server not connected ❌");
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Health check failed");
+      const text = await res.text();
+
+      if (text.trim().toLowerCase() === "ok") {
+        setStatus(true, "Server connected ✅");
+      } else {
+        setStatus(false, "Server check failed");
+      }
+    } catch (err) {
+      setStatus(false, "Server not reachable");
     }
   }
+
   checkHealth();
 
-  async function postJSON(url, data){
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+  async function convertEnglishToPunjabi() {
+    const raw = (textB.value || "").trim();
+
+    if (!raw) {
+      convertedB.value = "";
+      convertNote.textContent = "Please type English text first.";
+      return;
+    }
+
+    convertedB.value = "Converting...";
+    convertNote.textContent = "Please wait...";
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/convert`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: raw,
+          mode: "english"
+        }),
+        signal: controller.signal
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.note || data.error || "Convert failed");
+      }
+
+      convertedB.value = data.gurmukhi || "";
+      convertNote.textContent = data.note || "Converted successfully.";
+    } catch (err) {
+      console.error("convert error:", err);
+      convertedB.value = raw;
+      convertNote.textContent = err.message || "Convert failed.";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  btnConvert.addEventListener("click", convertEnglishToPunjabi);
+
+  btnPasteToA.addEventListener("click", () => {
+    const value = (convertedB.value || "").trim();
+    if (!value || value === "Converting...") return;
+    textA.value = value;
+    textA.focus();
+  });
+
+  btnGenA.addEventListener("click", async () => {
+    const text = (textA.value || "").trim();
+
+    if (!text) {
+      alert("Please type or paste Punjabi text in Option A first.");
+      return;
+    }
+
+    btnGenA.disabled = true;
+    btnDlA.disabled = true;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/tts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text,
+          voice: voiceA.value,
+          speed: Number(speedA.value || 1),
+          pitch: Number(pitchA.value || 0)
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.audioBase64) {
+        throw new Error(data.error || "TTS failed");
+      }
+
+      const binary = atob(data.audioBase64);
+      const bytes = new Uint8Array(binary.length);
+
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+
+      const blob = new Blob([bytes], { type: "audio/mpeg" });
+
+      if (lastObjectUrl) {
+        URL.revokeObjectURL(lastObjectUrl);
+      }
+
+      lastObjectUrl = URL.createObjectURL(blob);
+      playerA.src = lastObjectUrl;
+      await playerA.play();
+
+      btnDlA.disabled = false;
+      btnDlA.onclick = () => {
+        const a = document.createElement("a");
+        a.href = lastObjectUrl;
+        a.download = "voicepunjab.mp3";
+        a.click();
+      };
+    } catch (err) {
+      console.error("tts error:", err);
+      alert("TTS failed: " + err.message);
+    } finally {
+      btnGenA.disabled = false;
+    }
+  });
+
+  const keyboardRows = [
+    ["ੌ","ੈ","ਾ","ੀ","ੂ","ਬ","ਹ","ਗ","ਦ","ਜ","ੜ"],
+    ["ੋ","ੇ","੍","ਿ","ੁ","ਪ","ਰ","ਕ","ਤ","ਚ","ਟ"],
+    ["ੰ","ਮ","ਨ","ਵ","ਲ","ਸ","ਯ"],
+    ["ਅ","ਆ","ਇ","ਈ","ਉ","ਊ","ਏ","ਐ","ਓ","ਔ"],
+    ["ਖ","ਘ","ਙ","ਛ","ਝ","ਞ","ਠ","ਢ","ਣ"],
+    ["ਫ","ਭ","ਧ","ਸ਼","ਜ਼","ਫ਼","ੜ","ੱ","ਂ"]
+  ];
+
+  function insertAtCursor(textarea, value) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const current = textarea.value;
+
+    textarea.value = current.slice(0, start) + value + current.slice(end);
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = start + value.length;
+  }
+
+  function buildKeyboard() {
+    keyboard.innerHTML = "";
+
+    keyboardRows.forEach(row => {
+      const rowEl = document.createElement("div");
+      rowEl.className = "keyboard-row";
+
+      row.forEach(char => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "key";
+        btn.textContent = char;
+        btn.addEventListener("click", () => insertAtCursor(keyboardText, char));
+        rowEl.appendChild(btn);
+      });
+
+      keyboard.appendChild(rowEl);
     });
-    const json = await res.json().catch(() => ({}));
-    if(!res.ok) throw new Error(json.error || "Request failed");
-    return json;
   }
 
-  function base64ToBlob(base64, mime="audio/mpeg"){
-    const byteChars = atob(base64);
-    const byteNums = new Array(byteChars.length);
-    for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-    const byteArray = new Uint8Array(byteNums);
-    return new Blob([byteArray], { type: mime });
-  }
+  buildKeyboard();
 
-  let lastBlobA = null;
+  btnSpace.addEventListener("click", () => insertAtCursor(keyboardText, " "));
+  btnBackspace.addEventListener("click", () => {
+    const start = keyboardText.selectionStart;
+    const end = keyboardText.selectionEnd;
+    const current = keyboardText.value;
 
-  document.getElementById("btnPlayA").addEventListener("click", async () => {
-    const text = document.getElementById("textA").value.trim();
-    const voiceName = document.getElementById("voice").value || undefined;
-    const speakingRate = Number(document.getElementById("speed").value || 1);
-    const pitch = Number(document.getElementById("pitch").value || 0);
-
-    if(!text) return alert("Please type Punjabi text first.");
-
-    try{
-      const data = await postJSON(`${API_BASE}/api/tts`, { text, voiceName, speakingRate, pitch });
-      const blob = base64ToBlob(data.audioBase64);
-      lastBlobA = blob;
-
-      const url = URL.createObjectURL(blob);
-      const player = document.getElementById("playerA");
-      player.src = url;
-      await player.play();
-
-      document.getElementById("btnDownloadA").disabled = false;
-    }catch(e){
-      alert("TTS failed: " + e.message);
+    if (start !== end) {
+      keyboardText.value = current.slice(0, start) + current.slice(end);
+      keyboardText.selectionStart = keyboardText.selectionEnd = start;
+    } else if (start > 0) {
+      keyboardText.value = current.slice(0, start - 1) + current.slice(end);
+      keyboardText.selectionStart = keyboardText.selectionEnd = start - 1;
     }
+
+    keyboardText.focus();
   });
 
-  document.getElementById("btnDownloadA").addEventListener("click", () => {
-    if(!lastBlobA) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(lastBlobA);
-    a.download = "voicepunjab.mp3";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+  btnClearKeyboard.addEventListener("click", () => {
+    keyboardText.value = "";
+    keyboardText.focus();
   });
 
-  document.getElementById("btnConvert").addEventListener("click", async () => {
-    const text = document.getElementById("textB").value.trim();
-    if(!text) return alert("Type English Punjabi first.");
-    try{
-      const data = await postJSON(`${API_BASE}/api/convert`, { text });
-      document.getElementById("convertedText").textContent = data.gurmukhi || "(empty)";
-      document.getElementById("btnPasteToA").disabled = !(data.gurmukhi && data.gurmukhi.trim());
-    }catch(e){
-      alert("Convert failed: " + e.message);
-    }
-  });
-
-  document.getElementById("btnPasteToA").addEventListener("click", () => {
-    const t = document.getElementById("convertedText").textContent;
-    if(!t || t === "(empty)") return;
-    document.getElementById("textA").value = t;
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  btnSendKeyboardToA.addEventListener("click", () => {
+    const value = (keyboardText.value || "").trim();
+    if (!value) return;
+    textA.value = value;
+    textA.focus();
   });
 </script>
 </body>

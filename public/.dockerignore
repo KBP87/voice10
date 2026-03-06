@@ -1,7 +1,6 @@
 .env
-keys
-*.json
-node_modules
-*.sqlite
-npm-debug.log
+keys/
+node_modules/
+*.log
 .DS_Store
+data.sqlite

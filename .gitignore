@@ -1,5 +1,7 @@
+node_modules/
+.env
 keys/
 *.json
-.env
-node_modules/
-*.sqlite
+*.log
+.DS_Store
+data.sqlite
