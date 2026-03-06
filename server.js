@@ -71,6 +71,9 @@ const MAX_SPEED = 1.25;
 const MIN_PITCH = -5;
 const MAX_PITCH = 5;
 
+const DAILY_TRANSLATE_CHAR_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 3000);
+const DAILY_TTS_CHAR_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 5000);
+
 const DB_PATH = path.join(__dirname, "data.sqlite");
 const CACHE_DIR = path.join(__dirname, "cache");
 
@@ -100,6 +103,16 @@ function initDatabase() {
         speed REAL NOT NULL,
         pitch REAL NOT NULL,
         file_name TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS usage_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        char_count INTEGER NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -149,6 +162,39 @@ function makeTtsCacheKey({ text, voice, speed, pitch }) {
     .createHash("sha256")
     .update(JSON.stringify({ text, voice, speed, pitch }))
     .digest("hex");
+}
+
+function getClientId(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0].trim();
+  }
+  return req.ip || "unknown";
+}
+
+async function getTodayUsage(clientId, endpoint) {
+  const row = await dbGet(
+    `
+      SELECT COALESCE(SUM(char_count), 0) AS total
+      FROM usage_logs
+      WHERE client_id = ?
+        AND endpoint = ?
+        AND date(created_at) = date('now', 'localtime')
+    `,
+    [clientId, endpoint]
+  );
+
+  return Number(row?.total || 0);
+}
+
+async function logUsage(clientId, endpoint, charCount) {
+  await dbRun(
+    `
+      INSERT INTO usage_logs (client_id, endpoint, char_count)
+      VALUES (?, ?, ?)
+    `,
+    [clientId, endpoint, charCount]
+  );
 }
 
 async function translateEnglishToPunjabi(text) {
@@ -270,6 +316,16 @@ app.post("/api/convert", async (req, res) => {
     });
   }
 
+  const clientId = getClientId(req);
+  const todaysUsage = await getTodayUsage(clientId, "convert");
+
+  if (todaysUsage + text.length > DAILY_TRANSLATE_CHAR_LIMIT) {
+    return res.status(429).json({
+      gurmukhi: "",
+      note: `Daily translation limit reached. Please try again tomorrow.`
+    });
+  }
+
   const kill = setTimeout(() => {
     if (!res.headersSent) {
       res.status(504).json({
@@ -297,6 +353,8 @@ app.post("/api/convert", async (req, res) => {
     }
 
     const result = await translateEnglishToPunjabi(text);
+
+    await logUsage(clientId, "convert", text.length);
 
     clearTimeout(kill);
     return res.json({
@@ -358,6 +416,15 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
+    const clientId = getClientId(req);
+    const todaysUsage = await getTodayUsage(clientId, "tts");
+
+    if (todaysUsage + text.length > DAILY_TTS_CHAR_LIMIT) {
+      return res.status(429).json({
+        error: "Daily TTS limit reached. Please try again tomorrow."
+      });
+    }
+
     const cacheKey = makeTtsCacheKey({ text, voice, speed, pitch });
 
     const existing = await dbGet(
@@ -369,6 +436,8 @@ app.post("/api/tts", async (req, res) => {
       const cachedFilePath = path.join(CACHE_DIR, existing.file_name);
 
       if (fs.existsSync(cachedFilePath)) {
+        await logUsage(clientId, "tts", text.length);
+
         return res.json({
           audioUrl: `/cache/${existing.file_name}`,
           cached: true
@@ -401,6 +470,8 @@ app.post("/api/tts", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [cacheKey, text, voice, speed, pitch, fileName]
     );
+
+    await logUsage(clientId, "tts", text.length);
 
     return res.json({
       audioUrl: `/cache/${fileName}`,
@@ -440,4 +511,6 @@ app.listen(PORT, "0.0.0.0", () => {
   );
   console.log("DB_PATH =", DB_PATH);
   console.log("CACHE_DIR =", CACHE_DIR);
+  console.log("DAILY_TRANSLATE_CHAR_LIMIT =", DAILY_TRANSLATE_CHAR_LIMIT);
+  console.log("DAILY_TTS_CHAR_LIMIT =", DAILY_TTS_CHAR_LIMIT);
 });
