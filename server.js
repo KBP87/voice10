@@ -71,8 +71,8 @@ const MAX_SPEED = 1.25;
 const MIN_PITCH = -5;
 const MAX_PITCH = 5;
 
-const DAILY_TRANSLATE_CHAR_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 3000);
-const DAILY_TTS_CHAR_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 5000);
+const DAILY_TRANSLATE_CHAR_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 300);
+const DAILY_TTS_CHAR_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 500);
 
 const DB_PATH = path.join(__dirname, "data.sqlite");
 const CACHE_DIR = path.join(__dirname, "cache");
@@ -116,6 +116,11 @@ function initDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_usage_logs_client_endpoint_date
+      ON usage_logs (client_id, endpoint, created_at)
+    `);
   });
 }
 
@@ -143,6 +148,25 @@ function containsGurmukhi(text) {
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function normalizeWhitespace(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeEnglishForCache(text) {
+  return normalizeWhitespace(text)
+    .toLowerCase()
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[.,!?;:]+$/g, "");
+}
+
+function normalizePunjabiForCache(text) {
+  return normalizeWhitespace(text)
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[.,!?;:]+$/g, "");
 }
 
 function isValidVoice(voice) {
@@ -202,9 +226,11 @@ async function translateEnglishToPunjabi(text) {
     throw new Error("Missing GOOGLE_CLOUD_PROJECT in environment variables");
   }
 
+  const cacheText = normalizeEnglishForCache(text);
+
   const existing = await dbGet(
     `SELECT translated_text FROM translation_cache WHERE source_text = ?`,
-    [text]
+    [cacheText]
   );
 
   if (existing) {
@@ -228,7 +254,7 @@ async function translateEnglishToPunjabi(text) {
   await dbRun(
     `INSERT OR IGNORE INTO translation_cache (source_text, translated_text)
      VALUES (?, ?)`,
-    [text, translatedText]
+    [cacheText, translatedText]
   );
 
   return {
@@ -326,17 +352,17 @@ app.get("/api/usage", async (req, res) => {
 });
 
 app.post("/api/convert", async (req, res) => {
-  const text = normalizeText(req.body?.text);
+  const rawText = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();
 
-  if (!text) {
+  if (!rawText) {
     return res.json({
       gurmukhi: "",
       note: "Nothing to convert."
     });
   }
 
-  if (text.length > MAX_CONVERT_TEXT_LENGTH) {
+  if (rawText.length > MAX_CONVERT_TEXT_LENGTH) {
     return res.status(400).json({
       gurmukhi: "",
       note: `Text is too long. Please keep it under ${MAX_CONVERT_TEXT_LENGTH} characters.`
@@ -346,27 +372,27 @@ app.post("/api/convert", async (req, res) => {
   const clientId = getClientId(req);
   const todaysUsage = await getTodayUsage(clientId, "convert");
 
-  if (todaysUsage + text.length > DAILY_TRANSLATE_CHAR_LIMIT) {
+  if (todaysUsage + rawText.length > DAILY_TRANSLATE_CHAR_LIMIT) {
     return res.status(429).json({
       gurmukhi: "",
-      note: `Daily translation limit reached. Please try again tomorrow.`
+      note: "Daily translation limit reached. Please try again tomorrow."
     });
   }
 
   const kill = setTimeout(() => {
     if (!res.headersSent) {
       res.status(504).json({
-        gurmukhi: text,
+        gurmukhi: rawText,
         note: "Conversion timeout. Please try again."
       });
     }
   }, 12000);
 
   try {
-    if (containsGurmukhi(text)) {
+    if (containsGurmukhi(rawText)) {
       clearTimeout(kill);
       return res.json({
-        gurmukhi: text,
+        gurmukhi: rawText,
         note: "Text is already in Punjabi."
       });
     }
@@ -374,20 +400,20 @@ app.post("/api/convert", async (req, res) => {
     if (mode !== "english") {
       clearTimeout(kill);
       return res.json({
-        gurmukhi: text,
+        gurmukhi: rawText,
         note: "Only English to Punjabi conversion is enabled in this section."
       });
     }
 
-    const result = await translateEnglishToPunjabi(text);
+    const result = await translateEnglishToPunjabi(rawText);
 
-    await logUsage(clientId, "convert", text.length);
+    await logUsage(clientId, "convert", rawText.length);
 
     clearTimeout(kill);
     return res.json({
       gurmukhi: result.translatedText,
       note: result.cached
-        ? "Translated from cache."
+        ? "Translated from smart cache."
         : "Translated from English to Punjabi."
     });
   } catch (err) {
@@ -395,7 +421,7 @@ app.post("/api/convert", async (req, res) => {
     console.error("convert error:", err);
 
     return res.status(500).json({
-      gurmukhi: text,
+      gurmukhi: rawText,
       error: "convert failed",
       note: err.message || "Conversion failed."
     });
@@ -404,22 +430,22 @@ app.post("/api/convert", async (req, res) => {
 
 app.post("/api/tts", async (req, res) => {
   try {
-    const text = normalizeText(req.body?.text);
+    const rawText = normalizeText(req.body?.text);
     const voice = normalizeText(req.body?.voice || "pa-IN-Standard-A");
     const speed = Number(req.body?.speed ?? 1);
     const pitch = Number(req.body?.pitch ?? 0);
 
-    if (!text) {
+    if (!rawText) {
       return res.status(400).json({ error: "Text required." });
     }
 
-    if (text.length > MAX_TTS_TEXT_LENGTH) {
+    if (rawText.length > MAX_TTS_TEXT_LENGTH) {
       return res.status(400).json({
         error: `Text too long. Maximum ${MAX_TTS_TEXT_LENGTH} characters.`
       });
     }
 
-    if (!containsGurmukhi(text)) {
+    if (!containsGurmukhi(rawText)) {
       return res.status(400).json({
         error: "Please enter Punjabi text in Gurmukhi before generating speech."
       });
@@ -443,16 +469,23 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
+    const normalizedPunjabi = normalizePunjabiForCache(rawText);
+
     const clientId = getClientId(req);
     const todaysUsage = await getTodayUsage(clientId, "tts");
 
-    if (todaysUsage + text.length > DAILY_TTS_CHAR_LIMIT) {
+    if (todaysUsage + rawText.length > DAILY_TTS_CHAR_LIMIT) {
       return res.status(429).json({
         error: "Daily TTS limit reached. Please try again tomorrow."
       });
     }
 
-    const cacheKey = makeTtsCacheKey({ text, voice, speed, pitch });
+    const cacheKey = makeTtsCacheKey({
+      text: normalizedPunjabi,
+      voice,
+      speed,
+      pitch
+    });
 
     const existing = await dbGet(
       `SELECT file_name FROM tts_cache WHERE cache_key = ?`,
@@ -463,7 +496,7 @@ app.post("/api/tts", async (req, res) => {
       const cachedFilePath = path.join(CACHE_DIR, existing.file_name);
 
       if (fs.existsSync(cachedFilePath)) {
-        await logUsage(clientId, "tts", text.length);
+        await logUsage(clientId, "tts", rawText.length);
 
         return res.json({
           audioUrl: `/cache/${existing.file_name}`,
@@ -473,7 +506,7 @@ app.post("/api/tts", async (req, res) => {
     }
 
     const request = {
-      input: { text },
+      input: { text: rawText },
       voice: {
         languageCode: "pa-IN",
         name: voice
@@ -495,10 +528,10 @@ app.post("/api/tts", async (req, res) => {
     await dbRun(
       `INSERT OR IGNORE INTO tts_cache (cache_key, text, voice, speed, pitch, file_name)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [cacheKey, text, voice, speed, pitch, fileName]
+      [cacheKey, normalizedPunjabi, voice, speed, pitch, fileName]
     );
 
-    await logUsage(clientId, "tts", text.length);
+    await logUsage(clientId, "tts", rawText.length);
 
     return res.json({
       audioUrl: `/cache/${fileName}`,
