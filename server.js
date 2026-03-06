@@ -55,7 +55,7 @@ const translateClient = new TranslationServiceClient(clientConfig);
 
 const ALLOWED_ORIGIN_RAW = (
   process.env.ALLOWED_ORIGIN ||
-  "http://localhost:8080,http://127.0.0.1:8080,https://voicepunjabai.com,https://www.voicepunjabai.com"
+  "https://voicepunjabai.com,https://www.voicepunjabai.com,http://localhost:8080,http://127.0.0.1:8080"
 ).trim();
 
 const ALLOWED_ORIGINS =
@@ -244,6 +244,7 @@ const convertLimiter = rateLimit({
 
 app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
+
 app.use("/cache", express.static(CACHE_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
