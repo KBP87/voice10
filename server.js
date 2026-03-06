@@ -298,6 +298,33 @@ app.get("/health", (req, res) => {
   res.send("ok");
 });
 
+app.get("/api/usage", async (req, res) => {
+  try {
+    const clientId = getClientId(req);
+
+    const translateUsed = await getTodayUsage(clientId, "convert");
+    const ttsUsed = await getTodayUsage(clientId, "tts");
+
+    return res.json({
+      translate: {
+        used: translateUsed,
+        limit: DAILY_TRANSLATE_CHAR_LIMIT,
+        remaining: Math.max(0, DAILY_TRANSLATE_CHAR_LIMIT - translateUsed)
+      },
+      tts: {
+        used: ttsUsed,
+        limit: DAILY_TTS_CHAR_LIMIT,
+        remaining: Math.max(0, DAILY_TTS_CHAR_LIMIT - ttsUsed)
+      }
+    });
+  } catch (err) {
+    console.error("usage error:", err);
+    return res.status(500).json({
+      error: "Failed to load usage stats."
+    });
+  }
+});
+
 app.post("/api/convert", async (req, res) => {
   const text = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();

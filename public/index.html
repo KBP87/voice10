@@ -21,6 +21,7 @@
     </header>
 
     <main class="grid">
+      <!-- LEFT -->
       <section class="card">
         <h2>Option A: Final Punjabi Text (Gurmukhi)</h2>
         <textarea id="textA" rows="8" placeholder="ਇੱਥੇ ਪੰਜਾਬੀ (ਗੁਰਮੁਖੀ) ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."></textarea>
@@ -50,8 +51,10 @@
 
         <audio id="playerA" controls preload="none"></audio>
         <div class="small">Speech is generated only from Punjabi text in Gurmukhi.</div>
+        <div id="ttsUsage" class="small">TTS usage today: loading...</div>
       </section>
 
+      <!-- RIGHT -->
       <section class="card">
         <h2>Option B: English to Punjabi</h2>
 
@@ -77,9 +80,11 @@
         <div id="convertNote" class="small">
           Use this section for English sentences. Review the Punjabi result before generating speech.
         </div>
+        <div id="translateUsage" class="small">Translation usage today: loading...</div>
       </section>
     </main>
 
+    <!-- KEYBOARD SECTION -->
     <section class="card keyboard-card">
       <h2>Option C: Punjabi Keyboard</h2>
       <div class="small keyboard-help">
@@ -134,6 +139,9 @@
   const btnClearKeyboard = document.getElementById("btnClearKeyboard");
   const btnSendKeyboardToA = document.getElementById("btnSendKeyboardToA");
 
+  const ttsUsage = document.getElementById("ttsUsage");
+  const translateUsage = document.getElementById("translateUsage");
+
   let lastAudioUrl = "";
 
   function setStatus(ok, msg) {
@@ -158,7 +166,26 @@
     }
   }
 
+  async function loadUsage() {
+    try {
+      const res = await fetch(`${API_BASE}/api/usage`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Usage fetch failed");
+
+      const data = await res.json();
+
+      ttsUsage.textContent =
+        `TTS usage today: ${data.tts.used} / ${data.tts.limit} characters (${data.tts.remaining} left)`;
+
+      translateUsage.textContent =
+        `Translation usage today: ${data.translate.used} / ${data.translate.limit} characters (${data.translate.remaining} left)`;
+    } catch (err) {
+      ttsUsage.textContent = "TTS usage today: unavailable";
+      translateUsage.textContent = "Translation usage today: unavailable";
+    }
+  }
+
   checkHealth();
+  loadUsage();
 
   async function convertEnglishToPunjabi() {
     const raw = (textB.value || "").trim();
@@ -196,6 +223,7 @@
 
       convertedB.value = data.gurmukhi || "";
       convertNote.textContent = data.note || "Converted successfully.";
+      loadUsage();
     } catch (err) {
       console.error("convert error:", err);
       convertedB.value = raw;
@@ -256,6 +284,8 @@
         a.download = "voicepunjab.mp3";
         a.click();
       };
+
+      loadUsage();
     } catch (err) {
       console.error("tts error:", err);
       alert("TTS failed: " + err.message);
