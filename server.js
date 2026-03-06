@@ -8,6 +8,7 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
@@ -40,7 +41,6 @@ if (GOOGLE_CREDENTIALS_JSON) {
     }
 
     clientConfig.credentials = creds;
-
   } catch (err) {
     console.error("Failed to parse GOOGLE_CREDENTIALS_JSON:", err.message);
   }
@@ -51,11 +51,30 @@ if (GOOGLE_CREDENTIALS_JSON) {
 const ttsClient = new textToSpeech.TextToSpeechClient(clientConfig);
 const translateClient = new TranslationServiceClient(clientConfig);
 
-const ALLOWED_ORIGIN_RAW = (process.env.ALLOWED_ORIGIN || "*").trim();
+const ALLOWED_ORIGIN_RAW = (
+  process.env.ALLOWED_ORIGIN ||
+  "http://localhost:8080,http://127.0.0.1:8080,https://voicepunjabai.com,https://www.voicepunjabai.com"
+).trim();
+
 const ALLOWED_ORIGINS =
   ALLOWED_ORIGIN_RAW === "*"
     ? "*"
     : ALLOWED_ORIGIN_RAW.split(",").map((s) => s.trim()).filter(Boolean);
+
+const ALLOWED_VOICES = ["pa-IN-Standard-A", "pa-IN-Standard-B"];
+const MAX_TTS_TEXT_LENGTH = 1000;
+const MAX_CONVERT_TEXT_LENGTH = 500;
+const MIN_SPEED = 0.75;
+const MAX_SPEED = 1.25;
+const MIN_PITCH = -5;
+const MAX_PITCH = 5;
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false
+  })
+);
 
 app.use(express.json({ limit: "1mb" }));
 
@@ -79,33 +98,52 @@ app.use((req, res, next) => {
   next();
 });
 
-const limiter = rateLimit({
+const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many TTS requests. Please wait a minute and try again."
+  }
 });
 
-app.use("/api/tts", limiter);
+const convertLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many conversion requests. Please wait a minute and try again."
+  }
+});
+
+app.use("/api/tts", ttsLimiter);
+app.use("/api/convert", convertLimiter);
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/health", (req, res) => {
   res.send("ok");
 });
 
-app.get("/debug-auth", (req, res) => {
-  res.json({
-    nodeEnv: process.env.NODE_ENV || null,
-    googleCloudProject: GOOGLE_CLOUD_PROJECT || null,
-    googleApplicationCredentials: GOOGLE_APPLICATION_CREDENTIALS || null,
-    googleCredentialsJsonPresent: !!GOOGLE_CREDENTIALS_JSON,
-    keyFileExists: GOOGLE_APPLICATION_CREDENTIALS
-      ? fs.existsSync(GOOGLE_APPLICATION_CREDENTIALS)
-      : false,
-    allowedOrigin: ALLOWED_ORIGIN_RAW || null
-  });
-});
-
 function containsGurmukhi(text) {
   return /[\u0A00-\u0A7F]/.test(String(text || ""));
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function isValidVoice(voice) {
+  return ALLOWED_VOICES.includes(voice);
+}
+
+function isValidSpeed(speed) {
+  return Number.isFinite(speed) && speed >= MIN_SPEED && speed <= MAX_SPEED;
+}
+
+function isValidPitch(pitch) {
+  return Number.isFinite(pitch) && pitch >= MIN_PITCH && pitch <= MAX_PITCH;
 }
 
 async function translateEnglishToPunjabi(text) {
@@ -126,13 +164,20 @@ async function translateEnglishToPunjabi(text) {
 }
 
 app.post("/api/convert", async (req, res) => {
-  const text = String(req.body?.text || "").trim();
-  const mode = String(req.body?.mode || "english").trim().toLowerCase();
+  const text = normalizeText(req.body?.text);
+  const mode = normalizeText(req.body?.mode || "english").toLowerCase();
 
   if (!text) {
     return res.json({
       gurmukhi: "",
       note: "Nothing to convert."
+    });
+  }
+
+  if (text.length > MAX_CONVERT_TEXT_LENGTH) {
+    return res.status(400).json({
+      gurmukhi: "",
+      note: `Text is too long. Please keep it under ${MAX_CONVERT_TEXT_LENGTH} characters.`
     });
   }
 
@@ -183,10 +228,19 @@ app.post("/api/convert", async (req, res) => {
 
 app.post("/api/tts", async (req, res) => {
   try {
-    const text = String(req.body?.text || "").trim();
+    const text = normalizeText(req.body?.text);
+    const voice = normalizeText(req.body?.voice || "pa-IN-Standard-A");
+    const speed = Number(req.body?.speed ?? 1);
+    const pitch = Number(req.body?.pitch ?? 0);
 
     if (!text) {
-      return res.status(400).json({ error: "Text required" });
+      return res.status(400).json({ error: "Text required." });
+    }
+
+    if (text.length > MAX_TTS_TEXT_LENGTH) {
+      return res.status(400).json({
+        error: `Text too long. Maximum ${MAX_TTS_TEXT_LENGTH} characters.`
+      });
     }
 
     if (!containsGurmukhi(text)) {
@@ -195,9 +249,23 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    const voice = String(req.body?.voice || "pa-IN-Standard-A");
-    const speed = Number(req.body?.speed ?? 1);
-    const pitch = Number(req.body?.pitch ?? 0);
+    if (!isValidVoice(voice)) {
+      return res.status(400).json({
+        error: "Invalid voice selected."
+      });
+    }
+
+    if (!isValidSpeed(speed)) {
+      return res.status(400).json({
+        error: `Speed must be between ${MIN_SPEED} and ${MAX_SPEED}.`
+      });
+    }
+
+    if (!isValidPitch(pitch)) {
+      return res.status(400).json({
+        error: `Pitch must be between ${MIN_PITCH} and ${MAX_PITCH}.`
+      });
+    }
 
     const request = {
       input: { text },
