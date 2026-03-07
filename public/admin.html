@@ -21,44 +21,20 @@
       margin-bottom: 20px;
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-      margin-top: 20px;
-    }
-
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 5px 12px rgba(0, 0, 0, 0.08);
-    }
-
-    .card h3 {
-      margin-top: 0;
-      font-size: 18px;
-      color: #555;
-    }
-
-    .big {
-      font-size: 32px;
-      font-weight: bold;
-      margin-top: 10px;
-    }
-
-    .small {
-      color: #777;
-      margin-top: 6px;
-      font-size: 14px;
-    }
-
     .topbar {
       display: flex;
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
       margin-bottom: 25px;
+    }
+
+    input[type="password"] {
+      padding: 10px 12px;
+      border: 1px solid #d9deea;
+      border-radius: 8px;
+      min-width: 260px;
+      font-size: 14px;
     }
 
     button {
@@ -92,6 +68,31 @@
       color: #c92a2a;
     }
 
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 5px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .card h3 {
+      margin-top: 0;
+      font-size: 18px;
+      color: #555;
+    }
+
+    .big {
+      font-size: 32px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
     .wide {
       grid-column: 1 / -1;
     }
@@ -120,11 +121,13 @@
 <body>
 
   <h1>VoicePunjab Admin Dashboard</h1>
-  <div class="note">Live stats from Google Cloud Run API</div>
+  <div class="note">Enter your admin token to load live Cloud Run stats.</div>
 
   <div class="topbar">
-    <button id="refreshBtn" type="button">Refresh</button>
-    <div id="status" class="status">Loading admin stats...</div>
+    <input id="tokenInput" type="password" placeholder="Enter admin token" />
+    <button id="loadBtn" type="button">Load Stats</button>
+    <button id="clearBtn" type="button">Clear Token</button>
+    <div id="status" class="status">Waiting for token...</div>
   </div>
 
   <div class="grid">
@@ -200,7 +203,7 @@
         </thead>
         <tbody id="topClientsBody">
           <tr>
-            <td colspan="3">Loading...</td>
+            <td colspan="3">No data loaded yet.</td>
           </tr>
         </tbody>
       </table>
@@ -209,11 +212,12 @@
 
   <script>
     const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app";
-    const TOKEN = "voicepunjab_admin_2026_secure";
 
+    const tokenInput = document.getElementById("tokenInput");
+    const loadBtn = document.getElementById("loadBtn");
+    const clearBtn = document.getElementById("clearBtn");
     const statusEl = document.getElementById("status");
     const topClientsBody = document.getElementById("topClientsBody");
-    const refreshBtn = document.getElementById("refreshBtn");
 
     function setStatus(ok, message) {
       statusEl.classList.remove("ok", "bad");
@@ -221,14 +225,50 @@
       statusEl.textContent = message;
     }
 
+    function fillStats(data) {
+      document.getElementById("ttsRequests").innerText = data.today.tts_requests;
+      document.getElementById("trRequests").innerText = data.today.translate_requests;
+      document.getElementById("ttsChars").innerText = data.today.tts_characters;
+      document.getElementById("trChars").innerText = data.today.translate_characters;
+      document.getElementById("ttsHit").innerText = data.today.tts_cache_hit_rate;
+      document.getElementById("trHit").innerText = data.today.translate_cache_hit_rate;
+      document.getElementById("trCache").innerText = data.totals.translation_cache_records;
+      document.getElementById("ttsCache").innerText = data.totals.tts_cache_records;
+      document.getElementById("usageRows").innerText = data.totals.usage_log_rows;
+      document.getElementById("requestRows").innerText = data.totals.request_log_rows;
+      document.getElementById("translateLimit").innerText = data.limits.daily_translate_char_limit;
+      document.getElementById("ttsLimit").innerText = data.limits.daily_tts_char_limit;
+
+      const clients = data.top_clients_today || [];
+
+      if (!clients.length) {
+        topClientsBody.innerHTML = `<tr><td colspan="3">No client activity today.</td></tr>`;
+      } else {
+        topClientsBody.innerHTML = clients.map(client => `
+          <tr>
+            <td>${client.client_id}</td>
+            <td>${client.requests}</td>
+            <td>${client.chars}</td>
+          </tr>
+        `).join("");
+      }
+    }
+
     async function loadStats() {
+      const token = tokenInput.value.trim();
+
+      if (!token) {
+        setStatus(false, "Please enter admin token.");
+        return;
+      }
+
       setStatus(true, "Loading admin stats...");
 
       try {
         const res = await fetch(`${CLOUD_RUN}/api/admin/stats`, {
           method: "GET",
           headers: {
-            "X-Admin-Token": TOKEN
+            "X-Admin-Token": token
           },
           cache: "no-store"
         });
@@ -239,49 +279,28 @@
           throw new Error(data.error || "Failed to load admin stats");
         }
 
-        document.getElementById("ttsRequests").innerText = data.today.tts_requests;
-        document.getElementById("trRequests").innerText = data.today.translate_requests;
-
-        document.getElementById("ttsChars").innerText = data.today.tts_characters;
-        document.getElementById("trChars").innerText = data.today.translate_characters;
-
-        document.getElementById("ttsHit").innerText = data.today.tts_cache_hit_rate;
-        document.getElementById("trHit").innerText = data.today.translate_cache_hit_rate;
-
-        document.getElementById("trCache").innerText = data.totals.translation_cache_records;
-        document.getElementById("ttsCache").innerText = data.totals.tts_cache_records;
-
-        document.getElementById("usageRows").innerText = data.totals.usage_log_rows;
-        document.getElementById("requestRows").innerText = data.totals.request_log_rows;
-
-        document.getElementById("translateLimit").innerText = data.limits.daily_translate_char_limit;
-        document.getElementById("ttsLimit").innerText = data.limits.daily_tts_char_limit;
-
-        const clients = data.top_clients_today || [];
-
-        if (!clients.length) {
-          topClientsBody.innerHTML = `<tr><td colspan="3">No client activity today.</td></tr>`;
-        } else {
-          topClientsBody.innerHTML = clients.map(client => `
-            <tr>
-              <td>${client.client_id}</td>
-              <td>${client.requests}</td>
-              <td>${client.chars}</td>
-            </tr>
-          `).join("");
-        }
-
+        sessionStorage.setItem("vp_admin_token", token);
+        fillStats(data);
         setStatus(true, "Admin stats loaded successfully.");
       } catch (err) {
         console.error("Admin stats error:", err);
         setStatus(false, `Failed to load stats: ${err.message}`);
-
-        topClientsBody.innerHTML = `<tr><td colspan="3">Could not load data.</td></tr>`;
       }
     }
 
-    refreshBtn.addEventListener("click", loadStats);
-    loadStats();
+    loadBtn.addEventListener("click", loadStats);
+
+    clearBtn.addEventListener("click", () => {
+      sessionStorage.removeItem("vp_admin_token");
+      tokenInput.value = "";
+      setStatus(true, "Saved token cleared.");
+    });
+
+    const savedToken = sessionStorage.getItem("vp_admin_token");
+    if (savedToken) {
+      tokenInput.value = savedToken;
+      loadStats();
+    }
   </script>
 </body>
 </html>
