@@ -20,83 +20,73 @@
 
 
 <header class="topbar">
+  <div class="brand">
+    <div class="logo">VP</div>
+    <div>
+      <div class="title">VoicePunjab</div>
+      <div class="subtitle">Punjabi Text-to-Speech (Gurmukhi → MP3)</div>
+    </div>
+  </div>
 
+  <nav class="nav">
+    <a href="index.html" class="active">Home</a>
+    <a href="#help">Help</a>
+    <a href="pricing.html">Pricing</a>
+    <a href="about.html">About</a>
+    <a href="contact.html">Contact</a>
+  </nav>
 
-<div class="brand">
+  <div id="status" class="status">
+    <span>Checking server…</span>
+  </div>
+</header>
 
-<div class="logo">VP</div>
-
-<div>
-<div class="title">VoicePunjab</div>
-<div class="subtitle">Punjabi Text-to-Speech (Gurmukhi → MP3)</div>
-</div>
-
-</div>
-
-
-
-<nav class="nav">
-
-<a href="#">Home</a>
-<a href="#help">Help</a>
-<a href="#">Pricing</a>
-
-</nav>
-
-
-
-<div id="status" class="status">
-<span>Checking server…</span>
-</div>
-
+<section class="intro-strip">
+  <p>
+    Convert Punjabi Gurmukhi text into natural MP3 audio. Paste Punjabi text directly under Option A,or
+    convert English to Punjabi first using Option B, or fine-tune spelling using the Punjabi keyboard under Option C  after scrolling down the page.
+  </p>
+</section>
 
 </header>
 
 <section class="intro-text">
 
-<p>
-VoicePunjab converts Punjabi Gurmukhi text into MP3 audio.  
-Paste Punjabi text, convert English to Punjabi, or type using the Punjabi keyboard below.
-</p>
 
 <section class="how-it-works">
+  <div class="step">
+    <div class="step-icon">①</div>
+    <div class="step-text">
+      <b>Paste Punjabi</b>
+      Paste Punjabi Gurmukhi text directly into Option A.
+    </div>
+  </div>
 
-<div class="step">
-<div class="step-icon">①</div>
-<div class="step-text">
-<b>Paste Punjabi</b><br>
-Paste Punjabi Gurmukhi text directly into Option A.
-</div>
-</div>
+  <div class="step">
+    <div class="step-icon">②</div>
+    <div class="step-text">
+      <b>Translate English</b>
+      Use Option B if you only have English text.
+    </div>
+  </div>
 
-<div class="step">
-<div class="step-icon">②</div>
-<div class="step-text">
-<b>Translate English</b><br>
-Use Option B if you only have English text.
-</div>
-</div>
+  <div class="step">
+    <div class="step-icon">③</div>
+    <div class="step-text">
+      <b>Fix with Keyboard</b>
+      Use the Punjabi keyboard if translation needs correction.
+    </div>
+  </div>
 
-<div class="step">
-<div class="step-icon">③</div>
-<div class="step-text">
-<b>Fix with Keyboard</b><br>
-Use the Punjabi keyboard if translation needs correction.
-</div>
-</div>
-
-<div class="step">
-<div class="step-icon">④</div>
-<div class="step-text">
-<b>Generate MP3</b><br>
-Click Generate & Play to create your audio.
-</div>
-</div>
-
-</section>
+  <div class="step">
+    <div class="step-icon">④</div>
+    <div class="step-text">
+      <b>Generate MP3</b>
+      Click Generate &amp; Play to create your audio.
+    </div>
+  </div>
 
 </section>
-
 
 
 <main class="grid">
@@ -184,7 +174,7 @@ TTS usage today: loading...
 <h2>Option B: English → Punjabi</h2>
 
 <p class="small">
-Convert English text into Punjabi first, then paste it into Option A.
+Convert English text into Punjabi (Gurmukhi) first, then paste it into Option A to play and download it.
 </p>
 
 
@@ -194,7 +184,8 @@ Type English
 
 
 <textarea id="textB" rows="8"
-placeholder="Type English here, for example: Hello how are you">
+placeholder="Type English here, for example: English - Hello how are you or  Punjabi typed in English - Tuhada ki haal hai
+ " ">
 </textarea>
 
 
@@ -333,63 +324,262 @@ Choose a voice and click Generate & Play to create your MP3 file.
 
 
 <script>
+  const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app";
 
-const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app"
+  const isLocal =
+    location.hostname === "localhost" ||
+    location.hostname === "127.0.0.1";
 
+  const API_BASE = isLocal ? "" : CLOUD_RUN;
 
-const isLocal =
-location.hostname === "localhost" ||
-location.hostname === "127.0.0.1"
+  const statusEl = document.getElementById("status");
+  const textA = document.getElementById("textA");
+  const voiceA = document.getElementById("voiceA");
+  const speedA = document.getElementById("speedA");
+  const pitchA = document.getElementById("pitchA");
+  const btnGenA = document.getElementById("btnGenA");
+  const btnDlA = document.getElementById("btnDlA");
+  const playerA = document.getElementById("playerA");
 
+  const textB = document.getElementById("textB");
+  const btnConvert = document.getElementById("btnConvert");
+  const btnPasteToA = document.getElementById("btnPasteToA");
+  const convertedB = document.getElementById("convertedB");
+  const convertNote = document.getElementById("convertNote");
 
-const API_BASE = isLocal ? "" : CLOUD_RUN
+  const keyboardText = document.getElementById("keyboardText");
+  const keyboard = document.getElementById("keyboard");
+  const btnSpace = document.getElementById("btnSpace");
+  const btnBackspace = document.getElementById("btnBackspace");
+  const btnClearKeyboard = document.getElementById("btnClearKeyboard");
+  const btnSendKeyboardToA = document.getElementById("btnSendKeyboardToA");
 
+  const ttsUsage = document.getElementById("ttsUsage");
+  const translateUsage = document.getElementById("translateUsage");
 
-const statusEl = document.getElementById("status")
+  let lastAudioUrl = "";
 
+  function setStatus(ok, msg) {
+    statusEl.classList.toggle("ok", !!ok);
+    statusEl.classList.toggle("bad", !ok);
+    statusEl.querySelector("span").textContent = msg;
+  }
 
-function setStatus(ok,msg){
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Health check failed");
+      const text = await res.text();
 
-statusEl.classList.toggle("ok",!!ok)
-statusEl.classList.toggle("bad",!ok)
+      if (text.trim().toLowerCase() === "ok") {
+        setStatus(true, "Server connected");
+      } else {
+        setStatus(false, "Server check failed");
+      }
+    } catch (err) {
+      setStatus(false, "Server not reachable");
+    }
+  }
 
-statusEl.querySelector("span").textContent = msg
+  async function loadUsage() {
+    try {
+      const res = await fetch(`${API_BASE}/api/usage`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Usage fetch failed");
 
-}
+      const data = await res.json();
 
+      ttsUsage.textContent =
+        `TTS usage today: ${data.tts.used} / ${data.tts.limit} characters (${data.tts.remaining} left)`;
 
-async function checkHealth(){
+      translateUsage.textContent =
+        `Translation usage today: ${data.translate.used} / ${data.translate.limit} characters (${data.translate.remaining} left)`;
+    } catch (err) {
+      ttsUsage.textContent = "TTS usage today: unavailable";
+      translateUsage.textContent = "Translation usage today: unavailable";
+    }
+  }
 
-try{
+  checkHealth();
+  loadUsage();
 
-const res = await fetch(`${API_BASE}/health`)
+  async function convertEnglishToPunjabi() {
+    const raw = (textB.value || "").trim();
 
-if(!res.ok) throw new Error()
+    if (!raw) {
+      convertedB.value = "";
+      convertNote.textContent = "Please type English text first.";
+      return;
+    }
 
-const text = await res.text()
+    convertedB.value = "Converting...";
+    convertNote.textContent = "Please wait...";
 
-if(text.trim().toLowerCase()==="ok"){
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
 
-setStatus(true,"Server connected")
+    try {
+      const res = await fetch(`${API_BASE}/api/convert`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text: raw,
+          mode: "english"
+        }),
+        signal: controller.signal
+      });
 
-}else{
+      const data = await res.json();
 
-setStatus(false,"Server check failed")
+      if (!res.ok) {
+        throw new Error(data.note || data.error || "Convert failed");
+      }
 
-}
+      convertedB.value = data.gurmukhi || "";
+      convertNote.textContent = data.note || "Converted successfully.";
+      loadUsage();
+    } catch (err) {
+      console.error("convert error:", err);
+      convertedB.value = raw;
+      convertNote.textContent = err.message || "Convert failed.";
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
-}catch{
+  btnConvert.addEventListener("click", convertEnglishToPunjabi);
 
-setStatus(false,"Server not reachable")
+  btnPasteToA.addEventListener("click", () => {
+    const value = (convertedB.value || "").trim();
+    if (!value || value === "Converting...") return;
+    textA.value = value;
+    textA.focus();
+  });
 
-}
+  btnGenA.addEventListener("click", async () => {
+    const text = (textA.value || "").trim();
 
-}
+    if (!text) {
+      alert("Please type or paste Punjabi text in Option A first.");
+      return;
+    }
 
-checkHealth()
+    btnGenA.disabled = true;
+    btnDlA.disabled = true;
 
+    try {
+      const res = await fetch(`${API_BASE}/api/tts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text,
+          voice: voiceA.value,
+          speed: Number(speedA.value || 1),
+          pitch: Number(pitchA.value || 0)
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.audioUrl) {
+        throw new Error(data.error || "TTS failed");
+      }
+
+      lastAudioUrl = `${API_BASE}${data.audioUrl}`;
+      playerA.src = lastAudioUrl;
+      await playerA.play();
+
+      btnDlA.disabled = false;
+      btnDlA.onclick = () => {
+        const a = document.createElement("a");
+        a.href = lastAudioUrl;
+        a.download = "voicepunjab.mp3";
+        a.click();
+      };
+
+      loadUsage();
+    } catch (err) {
+      console.error("tts error:", err);
+      alert("TTS failed: " + err.message);
+    } finally {
+      btnGenA.disabled = false;
+    }
+  });
+
+  const keyboardRows = [
+    ["ੌ","ੈ","ਾ","ੀ","ੂ","ਬ","ਹ","ਗ","ਦ","ਜ","ੜ"],
+    ["ੋ","ੇ","੍","ਿ","ੁ","ਪ","ਰ","ਕ","ਤ","ਚ","ਟ"],
+    ["ੰ","ਮ","ਨ","ਵ","ਲ","ਸ","ਯ"],
+    ["ਅ","ਆ","ਇ","ਈ","ਉ","ਊ","ਏ","ਐ","ਓ","ਔ"],
+    ["ਖ","ਘ","ਙ","ਛ","ਝ","ਞ","ਠ","ਢ","ਣ"],
+    ["ਫ","ਭ","ਧ","ਸ਼","ਜ਼","ਫ਼","ੜ","ੱ","ਂ"]
+  ];
+
+  function insertAtCursor(textarea, value) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const current = textarea.value;
+
+    textarea.value = current.slice(0, start) + value + current.slice(end);
+    textarea.focus();
+    textarea.selectionStart = textarea.selectionEnd = start + value.length;
+  }
+
+  function buildKeyboard() {
+    keyboard.innerHTML = "";
+
+    keyboardRows.forEach(row => {
+      const rowEl = document.createElement("div");
+      rowEl.className = "keyboard-row";
+
+      row.forEach(char => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "key";
+        btn.textContent = char;
+        btn.addEventListener("click", () => insertAtCursor(keyboardText, char));
+        rowEl.appendChild(btn);
+      });
+
+      keyboard.appendChild(rowEl);
+    });
+  }
+
+  buildKeyboard();
+
+  btnSpace.addEventListener("click", () => insertAtCursor(keyboardText, " "));
+
+  btnBackspace.addEventListener("click", () => {
+    const start = keyboardText.selectionStart;
+    const end = keyboardText.selectionEnd;
+    const current = keyboardText.value;
+
+    if (start !== end) {
+      keyboardText.value = current.slice(0, start) + current.slice(end);
+      keyboardText.selectionStart = keyboardText.selectionEnd = start;
+    } else if (start > 0) {
+      keyboardText.value = current.slice(0, start - 1) + current.slice(end);
+      keyboardText.selectionStart = keyboardText.selectionEnd = start - 1;
+    }
+
+    keyboardText.focus();
+  });
+
+  btnClearKeyboard.addEventListener("click", () => {
+    keyboardText.value = "";
+    keyboardText.focus();
+  });
+
+  btnSendKeyboardToA.addEventListener("click", () => {
+    const value = (keyboardText.value || "").trim();
+    if (!value) return;
+    textA.value = value;
+    textA.focus();
+  });
 </script>
-
 
 
 </body>
