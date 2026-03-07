@@ -15,7 +15,6 @@
           <div class="logo-wrap">
             <img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo">
           </div>
-
           <div>
             <div class="title">VoicePunjabAI</div>
             <div class="subtitle">Punjabi Text-to-Speech &amp; Translation</div>
@@ -64,7 +63,6 @@
       </div>
     </section>
 
-
     <main class="grid" id="toolStart">
 
       <section class="card">
@@ -103,8 +101,8 @@
         </div>
 
         <div class="btnrow">
-          <button id="btnGenA" class="primary">Generate &amp; Play</button>
-          <button id="btnDlA" disabled>Download MP3</button>
+          <button id="btnGenA" class="primary" type="button">Generate &amp; Play</button>
+          <button id="btnDlA" type="button" disabled>Download MP3</button>
         </div>
 
         <audio id="playerA" controls preload="none"></audio>
@@ -135,8 +133,8 @@
         <textarea id="textB" rows="8" placeholder="Type English here, for example: Hello, how are you?"></textarea>
 
         <div class="btnrow">
-          <button id="btnConvert">Convert to Punjabi</button>
-          <button id="btnPasteToA">Paste to Option A</button>
+          <button id="btnConvert" type="button">Convert to Punjabi</button>
+          <button id="btnPasteToA" type="button">Paste to Option A</button>
         </div>
 
         <label class="labelBlock">Converted Punjabi</label>
@@ -318,7 +316,9 @@
     function setStatus(ok, msg) {
       statusEl.classList.toggle("ok", !!ok);
       statusEl.classList.toggle("bad", !ok);
-      statusEl.querySelector("span").textContent = msg;
+      const span = statusEl.querySelector("span");
+      if (span) span.textContent = msg;
+      else statusEl.textContent = msg;
     }
 
     async function checkHealth() {
