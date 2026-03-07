@@ -1,217 +1,351 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>VoicePunjab Punjabi TTS</title>
-<link rel="stylesheet" href="css/style.css" />
+
+<link rel="stylesheet" href="css/style.css">
+
 </head>
+
 
 <body>
 
+
 <div class="wrap">
 
-<header class="topbar">
-  <div class="brand">
-    <div class="logo">VP</div>
-    <div>
-      <div class="title">VoicePunjab</div>
-      <div class="subtitle">Punjabi Text-to-Speech (Gurmukhi → MP3)</div>
-    </div>
-  </div>
 
-  <div id="status" class="status">
-    <span>Checking server…</span>
-  </div>
+<header class="topbar">
+
+
+<div class="brand">
+
+<div class="logo">VP</div>
+
+<div>
+<div class="title">VoicePunjab</div>
+<div class="subtitle">Punjabi Text-to-Speech (Gurmukhi → MP3)</div>
+</div>
+
+</div>
+
+
+
+<nav class="nav">
+
+<a href="#">Home</a>
+<a href="#help">Help</a>
+<a href="#">Pricing</a>
+
+</nav>
+
+
+
+<div id="status" class="status">
+<span>Checking server…</span>
+</div>
+
+
 </header>
 
-<section class="card intro-note">
-  <h2>Punjabi Text-to-Speech Generator</h2>
-
-  <p class="small">
-    VoicePunjab converts Punjabi Gurmukhi text into MP3 audio.
-    You can type Punjabi directly or convert English into Punjabi first.
-  </p>
-
-  <p class="small">
-    If you have trouble generating correct speech, follow the instructions shown below.
-  </p>
-</section>
 
 
 <main class="grid">
 
-<!-- OPTION A -->
 
 <section class="card">
 
 <h2>Option A: Final Punjabi Text (Gurmukhi)</h2>
 
 <p class="small">
-This Punjabi text will be used to generate speech.
+Paste or type Punjabi Gurmukhi text here to generate speech.
 </p>
 
-<textarea id="textA" rows="8" placeholder="ਇੱਥੇ ਪੰਜਾਬੀ (ਗੁਰਮੁਖੀ) ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."></textarea>
+<textarea id="textA" rows="8"
+placeholder="ਇੱਥੇ ਪੰਜਾਬੀ (ਗੁਰਮੁਖੀ) ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ...">
+</textarea>
+
+
 
 <div class="row3">
 
 <div>
 <label>Voice</label>
+
 <select id="voiceA">
 <option value="pa-IN-Standard-A">Female (Standard A)</option>
 <option value="pa-IN-Standard-B">Male (Standard B)</option>
 </select>
+
 </div>
+
+
 
 <div>
 <label>Speed</label>
-<input id="speedA" type="number" value="1" step="0.1" min="0.25" max="4" />
+<input id="speedA" type="number" value="1" step="0.1">
 </div>
+
+
 
 <div>
 <label>Pitch</label>
-<input id="pitchA" type="number" value="0" step="1" min="-20" max="20" />
+<input id="pitchA" type="number" value="0" step="1">
 </div>
 
 </div>
+
+
 
 <div class="btnrow">
-<button id="btnGenA" class="primary">Generate & Play</button>
-<button id="btnDlA" class="secondary" disabled>Download MP3</button>
+
+<button id="btnGenA" class="primary">
+Generate & Play
+</button>
+
+<button id="btnDlA" disabled>
+Download MP3
+</button>
+
 </div>
 
+
+
 <audio id="playerA" controls preload="none"></audio>
+
+
 
 <div class="small">
 Speech is generated only from Punjabi Gurmukhi text.
 </div>
 
+
 <div id="ttsUsage" class="small">
 TTS usage today: loading...
 </div>
 
+
 </section>
 
 
-<!-- OPTION B -->
 
 <section class="card">
+
 
 <h2>Option B: English → Punjabi</h2>
 
 <p class="small">
-If you only have English text, convert it here first.
-Then paste the Punjabi result into Option A.
+Convert English text into Punjabi first, then paste it into Option A.
 </p>
 
-<label class="labelBlock">Type English</label>
 
-<textarea
-id="textB"
-rows="8"
-placeholder="Type English here, for example: Hello, how are you?"
-></textarea>
+<label class="labelBlock">
+Type English
+</label>
+
+
+<textarea id="textB" rows="8"
+placeholder="Type English here, for example: Hello how are you">
+</textarea>
+
+
 
 <div class="btnrow">
-<button id="btnConvert" class="secondary" type="button">Convert to Punjabi</button>
-<button id="btnPasteToA" class="secondary" type="button">Paste to Option A</button>
+
+<button id="btnConvert">
+Convert to Punjabi
+</button>
+
+<button id="btnPasteToA">
+Paste to Option A
+</button>
+
 </div>
 
-<label class="labelBlock">Converted Punjabi</label>
 
-<textarea
-id="convertedB"
-rows="5"
-placeholder="Punjabi translation will appear here..."
-></textarea>
+
+<label class="labelBlock">
+Converted Punjabi
+</label>
+
+
+
+<textarea id="convertedB" rows="5"
+placeholder="Punjabi translation will appear here...">
+</textarea>
+
+
 
 <div id="convertNote" class="small">
 Review the Punjabi result before generating speech.
 </div>
 
+
+
 <div id="translateUsage" class="small">
 Translation usage today: loading...
 </div>
+
+
 
 </section>
 
 </main>
 
 
-<!-- KEYBOARD -->
 
 <section class="card keyboard-card">
 
 <h2>Option C: Punjabi Keyboard</h2>
 
 <div class="small keyboard-help">
-If translation is not perfect, type Punjabi manually here using the keyboard,
-then send it to Option A.
+
+If translation needs adjustment, type Punjabi manually using the keyboard.
+
 </div>
 
-<textarea
-id="keyboardText"
-rows="5"
-placeholder="ਇੱਥੇ ਪੰਜਾਬੀ ਟਾਈਪ ਕਰੋ..."
-></textarea>
+
+<textarea id="keyboardText" rows="5"
+placeholder="ਇੱਥੇ ਪੰਜਾਬੀ ਟਾਈਪ ਕਰੋ...">
+</textarea>
+
+
 
 <div class="btnrow keyboard-actions">
-<button class="secondary" id="btnSpace" type="button">Space</button>
-<button class="secondary" id="btnBackspace" type="button">Backspace</button>
-<button class="secondary" id="btnClearKeyboard" type="button">Clear</button>
-<button class="secondary" id="btnSendKeyboardToA" type="button">Send to Option A</button>
+
+<button id="btnSpace">Space</button>
+
+<button id="btnBackspace">Backspace</button>
+
+<button id="btnClearKeyboard">Clear</button>
+
+<button id="btnSendKeyboardToA">
+Send to Option A
+</button>
+
 </div>
 
+
+
 <div id="keyboard" class="keyboard"></div>
+
 
 </section>
 
 
-<!-- HELP SECTION -->
 
-<section class="card help-section">
+<section id="help" class="card help-section">
 
-<h2>How to Generate Correct Audio</h2>
+<h2>Help: Generating Correct Audio</h2>
+
 
 <div class="help-steps">
 
+
 <div class="help-box">
-<h3>1. If you already have Punjabi text</h3>
+<h3>Already have Punjabi text?</h3>
 <p>
-Paste your Punjabi Gurmukhi text directly into Option A and generate speech.
+Paste the Punjabi text directly into Option A and generate speech.
 </p>
 </div>
 
+
 <div class="help-box">
-<h3>2. If you only have English text</h3>
+<h3>Only have English text?</h3>
 <p>
-Use Option B to convert English into Punjabi first.
-Then paste the Punjabi result into Option A.
+Use Option B to convert English into Punjabi first, then paste it into Option A.
 </p>
 </div>
 
+
 <div class="help-box">
-<h3>3. If translation needs correction</h3>
+<h3>Translation needs correction?</h3>
 <p>
 Use the Punjabi keyboard to adjust spelling before generating speech.
 </p>
 </div>
 
+
 <div class="help-box">
-<h3>4. Generate audio</h3>
+<h3>Generate audio</h3>
 <p>
 Choose a voice and click Generate & Play to create your MP3 file.
 </p>
 </div>
 
+
 </div>
 
 </section>
 
+
 </div>
 
 
-<script src="js/app.js"></script>
+
+<script>
+
+const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app"
+
+
+const isLocal =
+location.hostname === "localhost" ||
+location.hostname === "127.0.0.1"
+
+
+const API_BASE = isLocal ? "" : CLOUD_RUN
+
+
+const statusEl = document.getElementById("status")
+
+
+function setStatus(ok,msg){
+
+statusEl.classList.toggle("ok",!!ok)
+statusEl.classList.toggle("bad",!ok)
+
+statusEl.querySelector("span").textContent = msg
+
+}
+
+
+async function checkHealth(){
+
+try{
+
+const res = await fetch(`${API_BASE}/health`)
+
+if(!res.ok) throw new Error()
+
+const text = await res.text()
+
+if(text.trim().toLowerCase()==="ok"){
+
+setStatus(true,"Server connected")
+
+}else{
+
+setStatus(false,"Server check failed")
+
+}
+
+}catch{
+
+setStatus(false,"Server not reachable")
+
+}
+
+}
+
+checkHealth()
+
+</script>
+
+
 
 </body>
 </html>
