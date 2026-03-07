@@ -20,10 +20,93 @@
       <div id="status" class="status"><span>Checking server…</span></div>
     </header>
 
+    <section class="hero card">
+      <div class="hero-badge">Punjabi Text to Speech Made Simple</div>
+      <h1>Convert Punjabi Gurmukhi text into natural MP3 audio</h1>
+      <p class="hero-text">
+        VoicePunjab helps you turn Punjabi text into downloadable speech. You can type Punjabi directly,
+        or first convert English into Punjabi, then generate audio in just a few clicks.
+      </p>
+
+      <div class="hero-points">
+        <div class="hero-point">Type Punjabi directly in Gurmukhi</div>
+        <div class="hero-point">Convert English to Punjabi first</div>
+        <div class="hero-point">Generate, play, and download MP3</div>
+      </div>
+    </section>
+
+    <section class="how-it-works card">
+      <h2>How It Works</h2>
+      <div class="steps">
+        <div class="step-box">
+          <div class="step-number">1</div>
+          <h3>Enter your text</h3>
+          <p>Already have Punjabi text? Use Option A. If you only have English, start with Option B.</p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-number">2</div>
+          <h3>Check the Punjabi</h3>
+          <p>Before generating speech, review the Punjabi carefully. Use the keyboard if you want to fix spelling.</p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-number">3</div>
+          <h3>Create MP3 audio</h3>
+          <p>Choose a voice, generate audio, listen instantly, and download the final MP3 file.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="tips card">
+      <h2>How to Get the Best Audio</h2>
+      <ul class="tips-list">
+        <li>Always generate audio from final Punjabi Gurmukhi text.</li>
+        <li>If you start in English, convert it first and review the Punjabi result before generating speech.</li>
+        <li>Use the Punjabi keyboard if translation needs small corrections.</li>
+        <li>Short, clear, properly written sentences usually produce better audio.</li>
+      </ul>
+    </section>
+
+    <section class="demo card">
+      <h2>Voice Demo</h2>
+      <p class="small">
+        Add 2 sample MP3 files in your website folder so new users can hear the quality before using the tool.
+      </p>
+
+      <div class="demo-grid">
+        <div class="demo-box">
+          <label>Female Voice Demo</label>
+          <audio controls preload="none">
+            <source src="demo/female-demo.mp3" type="audio/mpeg">
+          </audio>
+        </div>
+
+        <div class="demo-box">
+          <label>Male Voice Demo</label>
+          <audio controls preload="none">
+            <source src="demo/male-demo.mp3" type="audio/mpeg">
+          </audio>
+        </div>
+      </div>
+    </section>
+
+    <section class="card tool-intro">
+      <h2>Start Generating</h2>
+      <p class="small">
+        Already have Punjabi text? Use Option A. Have English text only? Use Option B first.
+        Need to correct Punjabi spelling? Use Option C keyboard.
+      </p>
+    </section>
+
     <main class="grid">
       <!-- LEFT -->
       <section class="card">
         <h2>Option A: Final Punjabi Text (Gurmukhi)</h2>
+        <p class="small section-help">
+          Use this section when your Punjabi text is ready. This is the text that will be converted into speech.
+        </p>
+
         <textarea id="textA" rows="8" placeholder="ਇੱਥੇ ਪੰਜਾਬੀ (ਗੁਰਮੁਖੀ) ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."></textarea>
 
         <div class="row3">
@@ -57,6 +140,9 @@
       <!-- RIGHT -->
       <section class="card">
         <h2>Option B: English to Punjabi</h2>
+        <p class="small section-help">
+          If you have English text, convert it here first. Then paste the Punjabi result into Option A.
+        </p>
 
         <label class="labelBlock">Type English</label>
         <textarea
@@ -84,7 +170,6 @@
       </section>
     </main>
 
-    <!-- KEYBOARD SECTION -->
     <section class="card keyboard-card">
       <h2>Option C: Punjabi Keyboard</h2>
       <div class="small keyboard-help">
@@ -106,6 +191,21 @@
 
       <div id="keyboard" class="keyboard"></div>
     </section>
+
+    <section class="use-cases card">
+      <h2>Who Can Use VoicePunjab</h2>
+      <div class="use-case-grid">
+        <div class="use-case-box">Punjabi learners</div>
+        <div class="use-case-box">Content creators</div>
+        <div class="use-case-box">Teachers and students</div>
+        <div class="use-case-box">Prayer, quote, and voice clips</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p>VoicePunjab helps you convert Punjabi text into MP3 audio with translation support and simple typing tools.</p>
+      <p class="small">For best results, always review the final Punjabi text before generating speech.</p>
+    </footer>
   </div>
 
 <script>
