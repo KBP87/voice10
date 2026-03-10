@@ -4,6 +4,18 @@ if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
 
+app.use((req,res,next)=>{
+const badPaths = ["wp-admin","wordpress","phpmyadmin"]
+
+for(const path of badPaths){
+if(req.url.includes(path)){
+return res.status(403).send("Forbidden")
+}
+}
+
+next()
+})
+
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
