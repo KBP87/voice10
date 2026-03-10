@@ -454,6 +454,16 @@ audio{
   line-height:1.7;
 }
 
+.small a{
+  color:var(--primary);
+  text-decoration:none;
+  font-weight:700;
+}
+
+.small a:hover{
+  text-decoration:underline;
+}
+
 .keyboard-help{
   margin-bottom:12px;
 }
@@ -704,7 +714,6 @@ audio{
     font-size:24px;
   }
 
-@media (max-width:900px){
   .hero-title{
     font-size:28px;
   }
@@ -713,7 +722,6 @@ audio{
     padding:18px 16px;
   }
 }
-
 
 @media (max-width:600px){
   .hero-title{
@@ -729,4 +737,3 @@ audio{
     text-align:center;
   }
 }
-

@@ -65,7 +65,13 @@ const ALLOWED_ORIGINS =
     ? "*"
     : ALLOWED_ORIGIN_RAW.split(",").map((s) => s.trim()).filter(Boolean);
 
-const ALLOWED_VOICES = ["pa-IN-Standard-A", "pa-IN-Standard-B"];
+const ALLOWED_VOICES = [
+  "pa-IN-Standard-A",
+  "pa-IN-Standard-B",
+  "pa-IN-Standard-C",
+  "pa-IN-Standard-D"
+];
+
 const MAX_TTS_TEXT_LENGTH = 1000;
 const MAX_CONVERT_TEXT_LENGTH = 500;
 const MIN_SPEED = 0.75;
@@ -419,88 +425,70 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
       requestLogCount,
       topClientsToday
     ] = await Promise.all([
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'convert'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'tts'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COALESCE(SUM(char_count), 0) AS total
-          FROM usage_logs
-          WHERE endpoint = 'convert'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COALESCE(SUM(char_count), 0) AS total
-          FROM usage_logs
-          WHERE endpoint = 'tts'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'convert'
-            AND cache_status = 'hit'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'convert'
-            AND cache_status = 'miss'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'tts'
-            AND cache_status = 'hit'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
-      dbGet(
-        `
-          SELECT COUNT(*) AS total
-          FROM request_logs
-          WHERE endpoint = 'tts'
-            AND cache_status = 'miss'
-            AND date(created_at) = date('now', 'localtime')
-        `
-      ),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'convert'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'tts'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COALESCE(SUM(char_count), 0) AS total
+        FROM usage_logs
+        WHERE endpoint = 'convert'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COALESCE(SUM(char_count), 0) AS total
+        FROM usage_logs
+        WHERE endpoint = 'tts'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'convert'
+          AND cache_status = 'hit'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'convert'
+          AND cache_status = 'miss'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'tts'
+          AND cache_status = 'hit'
+          AND date(created_at) = date('now', 'localtime')
+      `),
+      dbGet(`
+        SELECT COUNT(*) AS total
+        FROM request_logs
+        WHERE endpoint = 'tts'
+          AND cache_status = 'miss'
+          AND date(created_at) = date('now', 'localtime')
+      `),
       dbGet(`SELECT COUNT(*) AS total FROM translation_cache`),
       dbGet(`SELECT COUNT(*) AS total FROM tts_cache`),
       dbGet(`SELECT COUNT(*) AS total FROM usage_logs`),
       dbGet(`SELECT COUNT(*) AS total FROM request_logs`),
-      dbAll(
-        `
-          SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
-          FROM request_logs
-          WHERE date(created_at) = date('now', 'localtime')
-          GROUP BY client_id
-          ORDER BY requests DESC, chars DESC
-          LIMIT 5
-        `
-      )
+      dbAll(`
+        SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
+        FROM request_logs
+        WHERE date(created_at) = date('now', 'localtime')
+        GROUP BY client_id
+        ORDER BY requests DESC, chars DESC
+        LIMIT 5
+      `)
     ]);
 
     const translateHits = Number(translateCacheHitsToday?.total || 0);
@@ -744,9 +732,9 @@ app.post("/api/tts", async (req, res) => {
     });
   } catch (err) {
     console.error("tts error:", err);
-    res.status(500).json({
+    return res.status(500).json({
       error: "TTS failed",
-      details: err.message
+      details: err.message || "Unknown TTS error"
     });
   }
 });
@@ -779,4 +767,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("DAILY_TRANSLATE_CHAR_LIMIT =", DAILY_TRANSLATE_CHAR_LIMIT);
   console.log("DAILY_TTS_CHAR_LIMIT =", DAILY_TTS_CHAR_LIMIT);
   console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
+  console.log("ALLOWED_VOICES =", ALLOWED_VOICES.join(", "));
 });

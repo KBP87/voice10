@@ -79,9 +79,12 @@
           <div>
             <label>Voice</label>
             <select id="voiceA">
-              <option value="pa-IN-Standard-A">Female</option>
-              <option value="pa-IN-Standard-B">Male</option>
+              <option value="pa-IN-Standard-A">Female Voice</option>
+              <option value="pa-IN-Standard-B">Male Voice</option>
             </select>
+            <div class="small" style="margin-top:6px;">
+              Tip: Change the Pitch setting to slightly change the voice tone.
+            </div>
           </div>
 
           <div>
@@ -339,7 +342,7 @@
         const data = await res.json();
 
         if (!res.ok || !data.audioUrl) {
-          throw new Error(data.error || "TTS failed");
+          throw new Error(data.error || data.details || "TTS failed");
         }
 
         lastAudioUrl = API_BASE + data.audioUrl;
