@@ -29,7 +29,9 @@
         <a href="contact.html">Contact</a>
       </nav>
 
-      <div class="header-right"></div>
+      <div class="header-right">
+        <div id="authArea" class="small"></div>
+      </div>
     </header>
 
     <section class="card hero-card">
@@ -237,8 +239,47 @@
 
     const ttsUsage = document.getElementById("ttsUsage");
     const translateUsage = document.getElementById("translateUsage");
+    const authArea = document.getElementById("authArea");
 
     let lastAudioUrl = "";
+
+    function getToken() {
+      return localStorage.getItem("vp_token") || "";
+    }
+
+    function getSavedUser() {
+      try {
+        return JSON.parse(localStorage.getItem("vp_user") || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function logoutUser() {
+      localStorage.removeItem("vp_token");
+      localStorage.removeItem("vp_user");
+      window.location.href = "index.html";
+    }
+
+    function renderAuthArea() {
+      const user = getSavedUser();
+
+      if (user) {
+        authArea.innerHTML = `
+          Logged in as <strong>${user.name}</strong> (${user.plan})
+          <button id="logoutBtn" type="button" style="margin-left:10px;">Logout</button>
+        `;
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", logoutUser);
+        }
+      } else {
+        authArea.innerHTML = `
+          <a href="login.html">Login</a> /
+          <a href="signup.html">Sign Up</a>
+        `;
+      }
+    }
 
     async function checkHealth() {
       try {
@@ -250,7 +291,15 @@
 
     async function loadUsage() {
       try {
-        const res = await fetch(API_BASE + "/api/usage", { cache: "no-store" });
+        const token = getToken();
+
+        const res = await fetch(API_BASE + "/api/usage", {
+          cache: "no-store",
+          headers: token
+            ? { Authorization: "Bearer " + token }
+            : {}
+        });
+
         if (!res.ok) throw new Error("usage failed");
 
         const data = await res.json();
@@ -289,10 +338,13 @@
       convertNote.textContent = "Converting...";
 
       try {
+        const token = getToken();
+
         const res = await fetch(API_BASE + "/api/convert", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: "Bearer " + token } : {})
           },
           body: JSON.stringify({
             text: raw,
@@ -326,10 +378,13 @@
       btnDlA.disabled = true;
 
       try {
+        const token = getToken();
+
         const res = await fetch(API_BASE + "/api/tts", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: "Bearer " + token } : {})
           },
           body: JSON.stringify({
             text: text,
@@ -445,6 +500,7 @@
     });
 
     buildKeyboard();
+    renderAuthArea();
     checkHealth();
     loadUsage();
   </script>

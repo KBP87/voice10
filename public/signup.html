@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up - VoicePunjabAI</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <a href="index.html" class="brand-link">
+          <div class="logo-wrap">
+            <img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo" />
+          </div>
+          <div>
+            <div class="title">VoicePunjabAI</div>
+            <div class="subtitle">Punjabi Text-to-Speech &amp; Translation</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="login.html">Login</a>
+        <a href="signup.html" class="active">Sign Up</a>
+      </nav>
+
+      <div class="header-right">
+        <div class="status ok">Create Account</div>
+      </div>
+    </header>
+
+    <section class="intro-strip">
+      <p>
+        Create a free account to track usage and use VoicePunjabAI with account-based limits.
+      </p>
+    </section>
+
+    <section class="card" style="margin-top:20px; max-width:700px;">
+      <h2>Sign Up</h2>
+      <p class="small">Create your VoicePunjabAI account.</p>
+
+      <form id="signupForm" style="margin-top:14px;">
+        <label class="labelBlock" for="signupName">Name</label>
+        <input type="text" id="signupName" placeholder="Enter your name" required>
+
+        <label class="labelBlock" for="signupEmail">Email</label>
+        <input type="email" id="signupEmail" placeholder="Enter your email" required>
+
+        <label class="labelBlock" for="signupPassword">Password</label>
+        <input type="password" id="signupPassword" placeholder="At least 6 characters" required>
+
+        <div class="btnrow">
+          <button type="submit" class="primary">Create Account</button>
+          <a href="login.html" class="btn-link secondary">Already have an account?</a>
+        </div>
+
+        <div id="signupNote" class="small">Your free plan will be created automatically.</div>
+      </form>
+    </section>
+
+    <footer class="site-footer">
+      <div class="footer-bottom">
+        <div class="footer-note">© 2026 VoicePunjabAI. All rights reserved.</div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = "https://voicepunjab-api-777821135954.us-central1.run.app";
+    const signupForm = document.getElementById("signupForm");
+    const signupNote = document.getElementById("signupNote");
+
+    signupForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("signupName").value.trim();
+      const email = document.getElementById("signupEmail").value.trim();
+      const password = document.getElementById("signupPassword").value;
+
+      signupNote.textContent = "Creating account...";
+
+      try {
+        const url = API_BASE + "/api/signup";
+        console.log("Signup URL:", url);
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ name, email, password })
+        });
+
+        const text = await res.text();
+        console.log("Raw signup response:", text);
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Server returned HTML instead of JSON. Check the signup API URL.");
+        }
+
+        if (!res.ok) {
+          throw new Error(data.error || "Signup failed.");
+        }
+
+        localStorage.setItem("vp_token", data.token);
+        localStorage.setItem("vp_user", JSON.stringify(data.user));
+
+        signupNote.textContent = "Account created successfully. Redirecting...";
+        window.location.href = "index.html";
+      } catch (err) {
+        signupNote.textContent = err.message || "Signup failed.";
+      }
+    });
+  </script>
+</body>
+</html>

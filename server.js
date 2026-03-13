@@ -11,12 +11,15 @@ const crypto = require("crypto");
 const sqlite3 = require("sqlite3").verbose();
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
 const app = express();
 
 const PORT = Number(process.env.PORT || 8080);
+const JWT_SECRET = String(process.env.JWT_SECRET || "change-me-now").trim();
 
 const GOOGLE_CLOUD_PROJECT =
   process.env.GOOGLE_CLOUD_PROJECT ||
@@ -77,9 +80,6 @@ const MAX_SPEED = 1.25;
 const MIN_PITCH = -5;
 const MAX_PITCH = 5;
 
-const DAILY_TRANSLATE_CHAR_LIMIT = Number(process.env.GUEST_DAILY_LIMIT || 300);
-const DAILY_TTS_CHAR_LIMIT = Number(process.env.FREE_USER_DAILY_LIMIT || 500);
-
 const DB_PATH = path.join(__dirname, "data.sqlite");
 const CACHE_DIR = path.join(__dirname, "cache");
 
@@ -91,6 +91,17 @@ const db = new sqlite3.Database(DB_PATH);
 
 function initDatabase() {
   db.serialize(() => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        plan TEXT NOT NULL DEFAULT 'free',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     db.run(`
       CREATE TABLE IF NOT EXISTS translation_cache (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -219,12 +230,63 @@ function makeTtsCacheKey({ text, voice, speed, pitch }) {
     .digest("hex");
 }
 
-function getClientId(req) {
+function getClientIp(req) {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.trim()) {
     return forwarded.split(",")[0].trim();
   }
   return req.ip || "unknown";
+}
+
+function createAuthToken(user) {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      plan: user.plan
+    },
+    JWT_SECRET,
+    { expiresIn: "30d" }
+  );
+}
+
+function sanitizeUser(user) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    plan: user.plan
+  };
+}
+
+async function loadUserFromToken(req, res, next) {
+  try {
+    const authHeader = String(req.headers.authorization || "").trim();
+
+    if (!authHeader.startsWith("Bearer ")) {
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.slice(7).trim();
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    const user = await dbGet(
+      `SELECT id, name, email, plan FROM users WHERE id = ?`,
+      [decoded.id]
+    );
+
+    req.user = user || null;
+    next();
+  } catch (err) {
+    req.user = null;
+    next();
+  }
 }
 
 function requireAdmin(req, res, next) {
@@ -239,6 +301,29 @@ function requireAdmin(req, res, next) {
   }
 
   next();
+}
+
+function getPlanLimits(plan) {
+  switch (String(plan || "").toLowerCase()) {
+    case "starter":
+      return { translate: 5000, tts: 8000 };
+    case "pro":
+      return { translate: 20000, tts: 30000 };
+    case "business":
+      return { translate: 100000, tts: 150000 };
+    case "free":
+      return { translate: 1000, tts: 2000 };
+    case "guest":
+    default:
+      return { translate: 300, tts: 500 };
+  }
+}
+
+function getTrackingId(req) {
+  if (req.user?.id) {
+    return `user:${req.user.id}`;
+  }
+  return getClientIp(req);
 }
 
 async function getTodayUsage(clientId, endpoint) {
@@ -340,7 +425,7 @@ app.use((req, res, next) => {
   }
 
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Token");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token");
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -348,6 +433,8 @@ app.use((req, res, next) => {
 
   next();
 });
+
+app.use(loadUserFromToken);
 
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -379,23 +466,153 @@ app.get("/health", (req, res) => {
   res.send("ok");
 });
 
-app.get("/api/usage", async (req, res) => {
-  try {
-    const clientId = getClientId(req);
+/* AUTH ROUTES */
 
-    const translateUsed = await getTodayUsage(clientId, "convert");
-    const ttsUsed = await getTodayUsage(clientId, "tts");
+app.post("/api/signup", async (req, res) => {
+  try {
+    const name = normalizeText(req.body?.name);
+    const email = normalizeText(req.body?.email).toLowerCase();
+    const password = String(req.body?.password || "");
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        error: "Name, email, and password are required."
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long."
+      });
+    }
+
+    const existing = await dbGet(
+      `SELECT id FROM users WHERE email = ?`,
+      [email]
+    );
+
+    if (existing) {
+      return res.status(409).json({
+        error: "An account with this email already exists."
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const result = await dbRun(
+      `INSERT INTO users (name, email, password_hash, plan)
+       VALUES (?, ?, ?, 'free')`,
+      [name, email, passwordHash]
+    );
+
+    const user = await dbGet(
+      `SELECT id, name, email, plan FROM users WHERE id = ?`,
+      [result.lastID]
+    );
+
+    const token = createAuthToken(user);
 
     return res.json({
+      message: "Signup successful.",
+      token,
+      user: sanitizeUser(user)
+    });
+  } catch (err) {
+    console.error("signup error:", err);
+    return res.status(500).json({
+      error: "Signup failed."
+    });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const email = normalizeText(req.body?.email).toLowerCase();
+    const password = String(req.body?.password || "");
+
+    if (!email || !password) {
+      return res.status(400).json({
+        error: "Email and password are required."
+      });
+    }
+
+    const userRow = await dbGet(
+      `SELECT * FROM users WHERE email = ?`,
+      [email]
+    );
+
+    if (!userRow) {
+      return res.status(401).json({
+        error: "Invalid email or password."
+      });
+    }
+
+    const passwordOk = await bcrypt.compare(password, userRow.password_hash);
+
+    if (!passwordOk) {
+      return res.status(401).json({
+        error: "Invalid email or password."
+      });
+    }
+
+    const user = {
+      id: userRow.id,
+      name: userRow.name,
+      email: userRow.email,
+      plan: userRow.plan
+    };
+
+    const token = createAuthToken(user);
+
+    return res.json({
+      message: "Login successful.",
+      token,
+      user: sanitizeUser(user)
+    });
+  } catch (err) {
+    console.error("login error:", err);
+    return res.status(500).json({
+      error: "Login failed."
+    });
+  }
+});
+
+app.get("/api/me", (req, res) => {
+  if (!req.user) {
+    return res.json({
+      loggedIn: false,
+      user: null
+    });
+  }
+
+  return res.json({
+    loggedIn: true,
+    user: sanitizeUser(req.user)
+  });
+});
+
+/* USAGE */
+
+app.get("/api/usage", async (req, res) => {
+  try {
+    const trackingId = getTrackingId(req);
+    const plan = req.user?.plan || "guest";
+    const limits = getPlanLimits(plan);
+
+    const translateUsed = await getTodayUsage(trackingId, "convert");
+    const ttsUsed = await getTodayUsage(trackingId, "tts");
+
+    return res.json({
+      plan,
       translate: {
         used: translateUsed,
-        limit: DAILY_TRANSLATE_CHAR_LIMIT,
-        remaining: Math.max(0, DAILY_TRANSLATE_CHAR_LIMIT - translateUsed)
+        limit: limits.translate,
+        remaining: Math.max(0, limits.translate - translateUsed)
       },
       tts: {
         used: ttsUsed,
-        limit: DAILY_TTS_CHAR_LIMIT,
-        remaining: Math.max(0, DAILY_TTS_CHAR_LIMIT - ttsUsed)
+        limit: limits.tts,
+        remaining: Math.max(0, limits.tts - ttsUsed)
       }
     });
   } catch (err) {
@@ -405,6 +622,8 @@ app.get("/api/usage", async (req, res) => {
     });
   }
 });
+
+/* ADMIN */
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
   try {
@@ -520,10 +739,6 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
         usage_log_rows: Number(usageLogCount?.total || 0),
         request_log_rows: Number(requestLogCount?.total || 0)
       },
-      limits: {
-        daily_translate_char_limit: DAILY_TRANSLATE_CHAR_LIMIT,
-        daily_tts_char_limit: DAILY_TTS_CHAR_LIMIT
-      },
       top_clients_today: topClientsToday || []
     });
   } catch (err) {
@@ -533,6 +748,8 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     });
   }
 });
+
+/* CONVERT */
 
 app.post("/api/convert", async (req, res) => {
   const rawText = normalizeText(req.body?.text);
@@ -552,10 +769,13 @@ app.post("/api/convert", async (req, res) => {
     });
   }
 
-  const clientId = getClientId(req);
-  const todaysUsage = await getTodayUsage(clientId, "convert");
+  const trackingId = getTrackingId(req);
+  const plan = req.user?.plan || "guest";
+  const limits = getPlanLimits(plan);
 
-  if (todaysUsage + rawText.length > DAILY_TRANSLATE_CHAR_LIMIT) {
+  const todaysUsage = await getTodayUsage(trackingId, "convert");
+
+  if (todaysUsage + rawText.length > limits.translate) {
     return res.status(429).json({
       gurmukhi: "",
       note: "Daily translation limit reached. Please try again tomorrow."
@@ -590,12 +810,12 @@ app.post("/api/convert", async (req, res) => {
 
     const result = await translateEnglishToPunjabi(rawText);
 
-    await logUsage(clientId, "convert", rawText.length);
+    await logUsage(trackingId, "convert", rawText.length);
     await logRequest(
       "convert",
       result.cached ? "hit" : "miss",
       rawText.length,
-      clientId
+      trackingId
     );
 
     clearTimeout(kill);
@@ -616,6 +836,8 @@ app.post("/api/convert", async (req, res) => {
     });
   }
 });
+
+/* TTS */
 
 app.post("/api/tts", async (req, res) => {
   try {
@@ -660,10 +882,13 @@ app.post("/api/tts", async (req, res) => {
 
     const normalizedPunjabi = normalizePunjabiForCache(rawText);
 
-    const clientId = getClientId(req);
-    const todaysUsage = await getTodayUsage(clientId, "tts");
+    const trackingId = getTrackingId(req);
+    const plan = req.user?.plan || "guest";
+    const limits = getPlanLimits(plan);
 
-    if (todaysUsage + rawText.length > DAILY_TTS_CHAR_LIMIT) {
+    const todaysUsage = await getTodayUsage(trackingId, "tts");
+
+    if (todaysUsage + rawText.length > limits.tts) {
       return res.status(429).json({
         error: "Daily TTS limit reached. Please try again tomorrow."
       });
@@ -685,8 +910,8 @@ app.post("/api/tts", async (req, res) => {
       const cachedFilePath = path.join(CACHE_DIR, existing.file_name);
 
       if (fs.existsSync(cachedFilePath)) {
-        await logUsage(clientId, "tts", rawText.length);
-        await logRequest("tts", "hit", rawText.length, clientId);
+        await logUsage(trackingId, "tts", rawText.length);
+        await logRequest("tts", "hit", rawText.length, trackingId);
 
         return res.json({
           audioUrl: `/cache/${existing.file_name}`,
@@ -721,8 +946,8 @@ app.post("/api/tts", async (req, res) => {
       [cacheKey, normalizedPunjabi, voice, speed, pitch, fileName]
     );
 
-    await logUsage(clientId, "tts", rawText.length);
-    await logRequest("tts", "miss", rawText.length, clientId);
+    await logUsage(trackingId, "tts", rawText.length);
+    await logRequest("tts", "miss", rawText.length, trackingId);
 
     return res.json({
       audioUrl: `/cache/${fileName}`,
@@ -746,23 +971,10 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
   console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
   console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
-  console.log(
-    "GOOGLE_APPLICATION_CREDENTIALS =",
-    GOOGLE_APPLICATION_CREDENTIALS || "(not set)"
-  );
-  console.log(
-    "GOOGLE_CREDENTIALS_JSON present =",
-    !!GOOGLE_CREDENTIALS_JSON
-  );
-  console.log(
-    "KEY FILE EXISTS =",
-    GOOGLE_APPLICATION_CREDENTIALS
-      ? fs.existsSync(GOOGLE_APPLICATION_CREDENTIALS)
-      : false
-  );
+  console.log("GOOGLE_APPLICATION_CREDENTIALS =", GOOGLE_APPLICATION_CREDENTIALS || "(not set)");
+  console.log("GOOGLE_CREDENTIALS_JSON present =", !!GOOGLE_CREDENTIALS_JSON);
   console.log("DB_PATH =", DB_PATH);
   console.log("CACHE_DIR =", CACHE_DIR);
-  console.log("DAILY_TRANSLATE_CHAR_LIMIT =", DAILY_TRANSLATE_CHAR_LIMIT);
-  console.log("DAILY_TTS_CHAR_LIMIT =", DAILY_TTS_CHAR_LIMIT);
+  console.log("JWT_SECRET set =", !!JWT_SECRET);
   console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
 });
