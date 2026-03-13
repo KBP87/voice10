@@ -5,6 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VoicePunjabAI Punjabi TTS</title>
   <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .usage-card {
+      margin-top: 20px;
+    }
+
+    .usage-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .plan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      border: 1px solid #dbe4ff;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .usage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .usage-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fcfdff;
+    }
+
+    .usage-box h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .usage-big {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 6px 0;
+    }
+
+    .progress-wrap {
+      width: 100%;
+      height: 10px;
+      background: #e9edf8;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .usage-note {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .upgrade-btn {
+      text-decoration: none;
+      display: inline-block;
+      padding: 11px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: 1px solid var(--primary);
+      color: #fff;
+      transition: .2s ease;
+    }
+
+    .upgrade-btn:hover {
+      box-shadow: 0 10px 20px rgba(79,70,229,.24);
+      transform: translateY(-1px);
+    }
+
+    .account-email {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .demo-card {
+      margin-top: 20px;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .demo-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fcfdff;
+    }
+
+    .demo-box h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .demo-box p {
+      margin: 0 0 12px;
+    }
+
+    @media (max-width: 900px) {
+      .usage-grid,
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="wrap">
@@ -58,6 +190,64 @@
             <p class="small">• Built-in Punjabi keyboard</p>
             <p class="small">• Download audio</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card usage-card">
+      <div class="usage-top">
+        <div>
+          <h2>Your Account Dashboard</h2>
+          <p class="small">Track your plan and daily usage in one place.</p>
+          <div class="plan-badge" id="planBadge">Guest Plan</div>
+        </div>
+
+        <div>
+          <a href="pricing.html" class="upgrade-btn">View Plans</a>
+        </div>
+      </div>
+
+      <div class="usage-grid">
+        <div class="usage-box">
+          <h3>Account</h3>
+          <div class="usage-big" id="accountName">Guest User</div>
+          <div class="usage-note" id="welcomeText">Using guest limits.</div>
+          <div class="account-email" id="accountEmail"></div>
+        </div>
+
+        <div class="usage-box">
+          <h3>TTS Usage Today</h3>
+          <div class="usage-big" id="ttsUsageBig">0 / 0</div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="ttsProgress"></div>
+          </div>
+          <div class="usage-note" id="ttsUsageNote">Loading...</div>
+        </div>
+
+        <div class="usage-box">
+          <h3>Translation Usage Today</h3>
+          <div class="usage-big" id="translateUsageBig">0 / 0</div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="translateProgress"></div>
+          </div>
+          <div class="usage-note" id="translateUsageNote">Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card demo-card">
+      <h2>Quick Voice Guide</h2>
+      <div class="demo-grid">
+        <div class="demo-box">
+          <h3>Female Voice</h3>
+          <p class="small">Best for soft narration, stories, and general voice generation.</p>
+          <div class="usage-note">Tip: Raise pitch a little for a brighter tone.</div>
+        </div>
+
+        <div class="demo-box">
+          <h3>Male Voice</h3>
+          <p class="small">Best for balanced narration, explainers, and steady Punjabi speech.</p>
+          <div class="usage-note">Tip: Lower pitch slightly for a deeper tone.</div>
         </div>
       </div>
     </section>
@@ -241,6 +431,17 @@
     const translateUsage = document.getElementById("translateUsage");
     const authArea = document.getElementById("authArea");
 
+    const planBadge = document.getElementById("planBadge");
+    const accountName = document.getElementById("accountName");
+    const accountEmail = document.getElementById("accountEmail");
+    const welcomeText = document.getElementById("welcomeText");
+    const ttsUsageBig = document.getElementById("ttsUsageBig");
+    const ttsProgress = document.getElementById("ttsProgress");
+    const ttsUsageNote = document.getElementById("ttsUsageNote");
+    const translateUsageBig = document.getElementById("translateUsageBig");
+    const translateProgress = document.getElementById("translateProgress");
+    const translateUsageNote = document.getElementById("translateUsageNote");
+
     let lastAudioUrl = "";
 
     function getToken() {
@@ -281,6 +482,11 @@
       }
     }
 
+    function capitalizePlan(plan) {
+      if (!plan) return "Guest";
+      return plan.charAt(0).toUpperCase() + plan.slice(1);
+    }
+
     async function checkHealth() {
       try {
         await fetch(API_BASE + "/health", { cache: "no-store" });
@@ -292,6 +498,7 @@
     async function loadUsage() {
       try {
         const token = getToken();
+        const user = getSavedUser();
 
         const res = await fetch(API_BASE + "/api/usage", {
           cache: "no-store",
@@ -303,6 +510,14 @@
         if (!res.ok) throw new Error("usage failed");
 
         const data = await res.json();
+
+        const ttsPercent = data.tts.limit
+          ? Math.min(100, Math.round((data.tts.used / data.tts.limit) * 100))
+          : 0;
+
+        const translatePercent = data.translate.limit
+          ? Math.min(100, Math.round((data.translate.used / data.translate.limit) * 100))
+          : 0;
 
         ttsUsage.textContent =
           "TTS usage today: " +
@@ -321,9 +536,36 @@
           " characters (" +
           data.translate.remaining +
           " left)";
+
+        planBadge.textContent = capitalizePlan(data.plan) + " Plan";
+        accountName.textContent = user?.name || "Guest User";
+        accountEmail.textContent = user?.email || "";
+        welcomeText.textContent =
+          data.plan === "guest"
+            ? "Using guest limits."
+            : "Your account usage is tracked by plan.";
+
+        ttsUsageBig.textContent = `${data.tts.used} / ${data.tts.limit}`;
+        ttsProgress.style.width = ttsPercent + "%";
+        ttsUsageNote.textContent = `${data.tts.remaining} characters left today`;
+
+        translateUsageBig.textContent = `${data.translate.used} / ${data.translate.limit}`;
+        translateProgress.style.width = translatePercent + "%";
+        translateUsageNote.textContent = `${data.translate.remaining} characters left today`;
       } catch (e) {
         ttsUsage.textContent = "TTS usage unavailable";
         translateUsage.textContent = "Translation usage unavailable";
+
+        planBadge.textContent = "Unavailable";
+        accountName.textContent = "Unavailable";
+        accountEmail.textContent = "";
+        welcomeText.textContent = "Could not load account usage.";
+        ttsUsageBig.textContent = "Unavailable";
+        translateUsageBig.textContent = "Unavailable";
+        ttsUsageNote.textContent = "Please try again.";
+        translateUsageNote.textContent = "Please try again.";
+        ttsProgress.style.width = "0%";
+        translateProgress.style.width = "0%";
       }
     }
 
