@@ -196,6 +196,26 @@ function normalizeWhitespace(text) {
   return String(text || "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeEmail(email) {
+  const raw = String(email || "").trim().toLowerCase();
+  const parts = raw.split("@");
+
+  if (parts.length !== 2) return raw;
+
+  let [local, domain] = parts;
+
+  if (domain === "googlemail.com") {
+    domain = "gmail.com";
+  }
+
+  if (domain === "gmail.com") {
+    local = local.split("+")[0];
+    local = local.replace(/\./g, "");
+  }
+
+  return `${local}@${domain}`;
+}
+
 function normalizeEnglishForCache(text) {
   return normalizeWhitespace(text)
     .toLowerCase()
@@ -425,7 +445,10 @@ app.use((req, res, next) => {
   }
 
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Token");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Admin-Token"
+  );
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -435,6 +458,16 @@ app.use((req, res, next) => {
 });
 
 app.use(loadUserFromToken);
+
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many signup attempts. Please try again later."
+  }
+});
 
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -456,6 +489,7 @@ const convertLimiter = rateLimit({
   }
 });
 
+app.use("/api/signup", signupLimiter);
 app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
 
@@ -471,7 +505,7 @@ app.get("/health", (req, res) => {
 app.post("/api/signup", async (req, res) => {
   try {
     const name = normalizeText(req.body?.name);
-    const email = normalizeText(req.body?.email).toLowerCase();
+    const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || "");
 
     if (!name || !email || !password) {
@@ -527,7 +561,7 @@ app.post("/api/signup", async (req, res) => {
 
 app.post("/api/login", async (req, res) => {
   try {
-    const email = normalizeText(req.body?.email).toLowerCase();
+    const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || "");
 
     if (!email || !password) {
@@ -971,7 +1005,10 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
   console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
   console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
-  console.log("GOOGLE_APPLICATION_CREDENTIALS =", GOOGLE_APPLICATION_CREDENTIALS || "(not set)");
+  console.log(
+    "GOOGLE_APPLICATION_CREDENTIALS =",
+    GOOGLE_APPLICATION_CREDENTIALS || "(not set)"
+  );
   console.log("GOOGLE_CREDENTIALS_JSON present =", !!GOOGLE_CREDENTIALS_JSON);
   console.log("DB_PATH =", DB_PATH);
   console.log("CACHE_DIR =", CACHE_DIR);
