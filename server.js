@@ -4,18 +4,6 @@ if (process.env.NODE_ENV !== "production") {
   require("dotenv").config();
 }
 
-app.use((req,res,next)=>{
-const badPaths = ["wp-admin","wordpress","phpmyadmin"]
-
-for(const path of badPaths){
-if(req.url.includes(path)){
-return res.status(403).send("Forbidden")
-}
-}
-
-next()
-})
-
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -79,9 +67,7 @@ const ALLOWED_ORIGINS =
 
 const ALLOWED_VOICES = [
   "pa-IN-Standard-A",
-  "pa-IN-Standard-B",
-  "pa-IN-Standard-C",
-  "pa-IN-Standard-D"
+  "pa-IN-Standard-B"
 ];
 
 const MAX_TTS_TEXT_LENGTH = 1000;
@@ -756,7 +742,7 @@ app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("VoicePunjab running on port", PORT);
+  console.log(`VoicePunjab API running on port ${PORT}`);
   console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
   console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
   console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
@@ -779,5 +765,4 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("DAILY_TRANSLATE_CHAR_LIMIT =", DAILY_TRANSLATE_CHAR_LIMIT);
   console.log("DAILY_TTS_CHAR_LIMIT =", DAILY_TTS_CHAR_LIMIT);
   console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
-  console.log("ALLOWED_VOICES =", ALLOWED_VOICES.join(", "));
 });
