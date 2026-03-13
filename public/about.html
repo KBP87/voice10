@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VoicePunjabAI Punjabi TTS</title>
+<title>About - VoicePunjabAI</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -17,7 +17,7 @@
 <a href="index.html" class="brand-link">
 
 <div class="logo-wrap">
-<img src="images/logo.png" class="site-logo">
+<img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo">
 </div>
 
 <div>
@@ -29,195 +29,125 @@
 </div>
 
 <nav class="nav">
-<a href="index.html" class="active">Home</a>
+<a href="index.html">Home</a>
 <a href="pricing.html">Pricing</a>
-<a href="about.html">About</a>
+<a href="about.html" class="active">About</a>
 <a href="contact.html">Contact</a>
 </nav>
 
-<div class="header-right"></div>
+<div class="header-right">
+<div class="status ok">About the Project</div>
+</div>
 
 </header>
 
 
-<section class="card hero-card">
+<section class="intro-strip">
+<p>
+VoicePunjabAI is an AI-powered platform that converts Punjabi Gurmukhi text into natural sounding speech. The platform also provides English to Punjabi translation and a built-in Punjabi keyboard to make typing easier.
+</p>
+</section>
 
-<div class="hero-flex">
 
-<div class="hero-left">
+<section class="card" style="margin-top:20px;">
 
-<h1 class="hero-title">
-Convert Punjabi Text into Natural AI Voice
-</h1>
+<h2>What is VoicePunjabAI?</h2>
 
-<p class="small hero-text">
-VoicePunjabAI converts Punjabi Gurmukhi text into clear MP3 audio.  
-Translate English to Punjabi and type easily with the built-in keyboard.
+<p class="small">
+VoicePunjabAI was created to make Punjabi voice technology more accessible for everyday users. Many tools exist for English speech generation, but Punjabi support is still limited. VoicePunjabAI focuses specifically on Punjabi language needs.
 </p>
 
-<div class="btnrow hero-actions">
-<a href="#toolStart" class="btn-link primary">Start Now</a>
-<a href="about.html" class="btn-link secondary">Learn More</a>
-</div>
-
-</div>
-
-
-<div class="hero-right">
-
-<div class="hero-mini-box">
-
-<h3>Features</h3>
-
-<p class="small">• Punjabi text to MP3</p>
-<p class="small">• English to Punjabi translation</p>
-<p class="small">• Built-in Punjabi keyboard</p>
-<p class="small">• Download audio</p>
-
-</div>
-
-</div>
-
-</div>
+<p class="small">
+Users can paste Punjabi text, convert English into Punjabi, and generate downloadable MP3 audio. This makes the platform useful for learners, content creators, educators, and anyone who wants to generate Punjabi voice quickly.
+</p>
 
 </section>
 
 
-<main class="grid" id="toolStart">
+<section class="card" style="margin-top:20px;">
 
+<h2>Main Features</h2>
 
-<section class="card">
-
-<div class="option-head">
-
-<div>
-<h2>Option A: Punjabi Text</h2>
-<p class="small">Paste Punjabi text and generate MP3 audio.</p>
-</div>
-
-</div>
-
-
-<textarea id="textA" rows="8"
-placeholder="ਇੱਥੇ ਪੰਜਾਬੀ ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."></textarea>
-
-
-<div class="row3">
-
-<div>
-<label>Voice</label>
-
-<select id="voiceA">
-<option value="pa-IN-Standard-A">Female</option>
-<option value="pa-IN-Standard-B">Male</option>
-</select>
-
-</div>
-
-
-<div>
-<label>Speed</label>
-<input id="speedA" type="number" value="1" step="0.1">
-</div>
-
-
-<div>
-<label>Pitch</label>
-<input id="pitchA" type="number" value="0">
-</div>
-
-</div>
-
-
-<div class="btnrow">
-
-<button id="btnGenA" class="primary" type="button">
-Generate Audio
-</button>
-
-<button id="btnDlA" type="button" disabled>
-Download MP3
-</button>
-
-</div>
-
-
-<audio id="playerA" controls></audio>
-
-<div id="ttsUsage" class="small"></div>
+<div class="small">• Punjabi text-to-speech voice generation</div>
+<div class="small">• English to Punjabi translation</div>
+<div class="small">• Built-in Punjabi typing keyboard</div>
+<div class="small">• Adjustable voice speed and pitch</div>
+<div class="small">• Downloadable MP3 audio</div>
+<div class="small">• Daily usage tracking</div>
 
 </section>
 
 
+<section class="card" style="margin-top:20px;">
 
-<section class="card">
+<h2>Who Can Use VoicePunjabAI?</h2>
 
-<div class="option-head">
+<p class="small">
+VoicePunjabAI is useful for many types of users including:
+</p>
 
-<div>
-<h2>Option B: English → Punjabi</h2>
-<p class="small">Translate English text to Punjabi.</p>
-</div>
-
-</div>
-
-
-<label class="labelBlock">English</label>
-
-<textarea id="textB" rows="6"
-placeholder="Type English text"></textarea>
-
-
-<div class="btnrow">
-
-<button id="btnConvert" type="button">
-Convert
-</button>
-
-<button id="btnPasteToA" type="button">
-Paste to Option A
-</button>
-
-</div>
-
-
-<label class="labelBlock">Punjabi Result</label>
-
-<textarea id="convertedB" rows="5"></textarea>
-
-
-<div id="translateUsage" class="small"></div>
+<div class="small">• Punjabi language learners</div>
+<div class="small">• Content creators and YouTube channels</div>
+<div class="small">• Teachers and educators</div>
+<div class="small">• Podcast and narration creators</div>
+<div class="small">• Developers working with Punjabi content</div>
 
 </section>
 
-</main>
+
+<section class="card" style="margin-top:20px;">
+
+<h2>Technology Behind the Platform</h2>
+
+<p class="small">
+VoicePunjabAI uses modern web technologies and cloud-based AI services to generate speech and translation.
+</p>
+
+<div class="small">• Node.js backend API</div>
+<div class="small">• Google Cloud Text-to-Speech</div>
+<div class="small">• Google Cloud Translation API</div>
+<div class="small">• Secure API architecture</div>
+<div class="small">• Intelligent caching system to improve performance</div>
+
+<p class="small">
+The platform also uses caching and usage limits to reduce API costs while keeping the service available for free users.
+</p>
+
+</section>
 
 
+<section class="card" style="margin-top:20px;">
 
-<section class="card keyboard-card">
+<h2>Our Goal</h2>
 
-<h2>Option C: Punjabi Keyboard</h2>
+<p class="small">
+The goal of VoicePunjabAI is to support the Punjabi language in digital spaces and make Punjabi voice tools more widely available. By providing simple and accessible technology, the platform aims to help creators, learners, and developers work with Punjabi content more easily.
+</p>
 
-<textarea id="keyboardText"
-placeholder="Type Punjabi here"></textarea>
+</section>
 
 
-<div class="btnrow">
+<section class="card" style="margin-top:20px;">
 
-<button id="btnSpace" type="button">Space</button>
+<h2>Stay Connected</h2>
 
-<button id="btnBackspace" type="button">Backspace</button>
+<p class="small">
+Follow VoicePunjabAI on social media to stay updated about new features and improvements.
+</p>
 
-<button id="btnClearKeyboard" type="button">Clear</button>
-
-<button id="btnSendKeyboardToA" type="button">
-Send to Option A
-</button>
-
+<div class="small">
+Facebook:
+<a href="https://www.facebook.com/profile.php?id=61582754938512" target="_blank">
+VoicePunjabAI
+</a>
 </div>
 
-
-<div id="keyboard" class="keyboard"></div>
+<div class="small">
+Instagram:
+<a href="https://www.instagram.com/voicepunjabai/" target="_blank">
+@voicepunjabai
+</a>
+</div>
 
 </section>
 
@@ -228,17 +158,11 @@ Send to Option A
 <div class="footer-top">
 
 <div class="footer-brand">
-
-<div class="footer-title">
-VoicePunjabAI
-</div>
-
+<div class="footer-title">VoicePunjabAI</div>
 <p class="footer-text">
-Punjabi Text-to-Speech and translation tool.
+Punjabi Text-to-Speech and translation tool for generating natural MP3 audio from Punjabi Gurmukhi text.
 </p>
-
 </div>
-
 
 <div class="footer-links">
 
@@ -254,177 +178,25 @@ Punjabi Text-to-Speech and translation tool.
 <a href="contact.html">Contact</a>
 </div>
 
+<div class="footer-col">
+<h3>Legal</h3>
+<a href="privacy.html">Privacy Policy</a>
+<a href="terms.html">Terms of Service</a>
 </div>
 
 </div>
 
+</div>
 
 <div class="footer-bottom">
-
-<div class="socials">
-
-<a href="https://www.facebook.com/profile.php?id=61582754938512"
-class="social-icon"
-target="_blank">FB</a>
-
-<a href="https://www.instagram.com/voicepunjabai/"
-class="social-icon"
-target="_blank">IG</a>
-
-</div>
-
 <div class="footer-note">
-© 2026 VoicePunjabAI
+© 2026 VoicePunjabAI. All rights reserved.
 </div>
-
 </div>
 
 </footer>
 
-
 </div>
-
-
-<script>
-
-const CLOUD_RUN =
-"https://voicepunjab-api-777821135954.us-central1.run.app";
-
-const API_BASE = CLOUD_RUN;
-
-
-
-async function convertEnglishToPunjabi(){
-
-const raw = textB.value.trim();
-
-if(!raw) return;
-
-const res = await fetch(API_BASE + "/api/convert",{
-
-method:"POST",
-headers:{ "Content-Type":"application/json" },
-
-body:JSON.stringify({ text:raw })
-
-});
-
-const data = await res.json();
-
-convertedB.value = data.gurmukhi || "";
-
-}
-
-
-
-btnConvert.onclick = convertEnglishToPunjabi;
-
-
-btnPasteToA.onclick = ()=>{
-textA.value = convertedB.value;
-};
-
-
-
-btnGenA.onclick = async ()=>{
-
-const text = textA.value.trim();
-if(!text) return;
-
-const res = await fetch(API_BASE + "/api/tts",{
-
-method:"POST",
-
-headers:{ "Content-Type":"application/json" },
-
-body:JSON.stringify({
-text:text,
-voice:voiceA.value,
-speed:Number(speedA.value),
-pitch:Number(pitchA.value)
-})
-
-});
-
-const data = await res.json();
-
-if(!data.audioUrl) return;
-
-const url = API_BASE + data.audioUrl;
-
-playerA.src = url;
-playerA.play();
-
-btnDlA.disabled = false;
-
-btnDlA.onclick = ()=>{
-const a=document.createElement("a");
-a.href=url;
-a.download="voicepunjab.mp3";
-a.click();
-};
-
-};
-
-
-
-const rows=[
-["ਅ","ਆ","ਇ","ਈ","ਉ","ਊ","ਏ","ਐ","ਓ","ਔ"],
-["ਕ","ਖ","ਗ","ਘ","ਚ","ਛ","ਜ","ਝ","ਟ"],
-["ਤ","ਥ","ਦ","ਧ","ਨ","ਪ","ਫ","ਬ","ਭ"],
-["ਮ","ਯ","ਰ","ਲ","ਵ","ਸ","ਹ"]
-];
-
-
-function buildKeyboard(){
-
-rows.forEach(r=>{
-
-const row=document.createElement("div");
-row.className="keyboard-row";
-
-r.forEach(c=>{
-
-const b=document.createElement("button");
-b.className="key";
-b.type="button";
-b.textContent=c;
-
-b.onclick=()=>{
-keyboardText.value+=c;
-};
-
-row.appendChild(b);
-
-});
-
-keyboard.appendChild(row);
-
-});
-
-}
-
-buildKeyboard();
-
-
-btnSpace.onclick=()=>{
-keyboardText.value+=" ";
-};
-
-btnBackspace.onclick=()=>{
-keyboardText.value=
-keyboardText.value.slice(0,-1);
-};
-
-btnClearKeyboard.onclick=()=>{
-keyboardText.value="";
-};
-
-btnSendKeyboardToA.onclick=()=>{
-textA.value=keyboardText.value;
-};
-
-</script>
 
 </body>
 </html>
