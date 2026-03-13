@@ -29,13 +29,13 @@
       </nav>
 
       <div class="header-right">
-        <div class="status ok"><span>Get in touch</span></div>
+        <div class="status ok">Get in touch</div>
       </div>
     </header>
 
     <section class="intro-strip">
       <p>
-        Have questions, feedback, or support needs? Contact VoicePunjabAI and we will get back to you as the platform grows.
+        Have questions, feedback, business inquiries, or support needs? Send us a message and we will do our best to get back to you.
       </p>
     </section>
 
@@ -43,11 +43,19 @@
       <section class="card">
         <h2>Contact Us</h2>
         <p class="small">
-          For support, suggestions, partnerships, or general questions, please contact us using the details below.
+          Use the form to send a message, or contact us directly using the details below.
         </p>
 
-        <div class="small"><strong>Email:</strong> support@voicepunjabai.com</div>
-        <div class="small"><strong>Website:</strong> www.voicepunjabai.com</div>
+        <div class="small">
+          <strong>Email:</strong>
+          <a href="mailto:support@voicepunjabai.com">support@voicepunjabai.com</a>
+        </div>
+
+        <div class="small">
+          <strong>Website:</strong>
+          <a href="https://www.voicepunjabai.com" target="_blank" rel="noopener noreferrer">www.voicepunjabai.com</a>
+        </div>
+
         <div class="small"><strong>Response Time:</strong> Usually within 1 to 3 business days</div>
       </section>
 
@@ -56,14 +64,44 @@
         <div class="small">• Questions about Punjabi text-to-speech</div>
         <div class="small">• Report a bug or technical issue</div>
         <div class="small">• Share feature suggestions</div>
-        <div class="small">• Business or collaboration inquiries</div>
+        <div class="small">• Ask about higher usage or business needs</div>
       </section>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2>Send a Message</h2>
+      <p class="small">
+        Fill out the form below. When you click send, your email app will open with the message ready to send.
+      </p>
+
+      <form id="contactForm" style="margin-top:14px;">
+        <label class="labelBlock" for="contactName">Your Name</label>
+        <input type="text" id="contactName" placeholder="Enter your name" required>
+
+        <label class="labelBlock" for="contactEmail">Your Email</label>
+        <input type="email" id="contactEmail" placeholder="Enter your email" required>
+
+        <label class="labelBlock" for="contactSubject">Subject</label>
+        <input type="text" id="contactSubject" placeholder="Enter subject" required>
+
+        <label class="labelBlock" for="contactMessage">Message</label>
+        <textarea id="contactMessage" rows="7" placeholder="Write your message here" required></textarea>
+
+        <div class="btnrow">
+          <button type="submit" class="primary">Send Message</button>
+          <button type="reset">Clear</button>
+        </div>
+
+        <div id="contactNote" class="small">
+          This form opens your email app and prepares the message for support@voicepunjabai.com.
+        </div>
+      </form>
     </section>
 
     <section class="card" style="margin-top:20px;">
       <h2>Support Note</h2>
       <p class="small">
-        VoicePunjabAI is currently growing, so some features may continue to improve over time. Your feedback helps us build a better Punjabi voice platform.
+        VoicePunjabAI is growing, and some features will continue to improve over time. Your feedback helps us build a better Punjabi voice platform.
       </p>
     </section>
 
@@ -98,11 +136,56 @@
       </div>
 
       <div class="footer-bottom">
-        <div class="footer-note">
-          © 2026 VoicePunjabAI. All rights reserved.
+        <div class="socials">
+          <a
+            href="https://www.facebook.com/profile.php?id=61582754938512"
+            class="social-icon"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >FB</a>
+
+          <a
+            href="https://www.instagram.com/voicepunjabai/"
+            class="social-icon"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >IG</a>
         </div>
+
+        <div class="footer-note">© 2026 VoicePunjabAI. All rights reserved.</div>
       </div>
     </footer>
   </div>
+
+  <script>
+    const contactForm = document.getElementById("contactForm");
+    const contactNote = document.getElementById("contactNote");
+
+    contactForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const name = document.getElementById("contactName").value.trim();
+      const email = document.getElementById("contactEmail").value.trim();
+      const subject = document.getElementById("contactSubject").value.trim();
+      const message = document.getElementById("contactMessage").value.trim();
+
+      if (!name || !email || !subject || !message) {
+        contactNote.textContent = "Please fill in all fields before sending.";
+        return;
+      }
+
+      const fullSubject = encodeURIComponent("VoicePunjabAI Contact: " + subject);
+      const fullBody = encodeURIComponent(
+        "Name: " + name + "\n" +
+        "Email: " + email + "\n\n" +
+        "Message:\n" + message
+      );
+
+      window.location.href = `mailto:support@voicepunjabai.com?subject=${fullSubject}&body=${fullBody}`;
+      contactNote.textContent = "Your email app should open with the message ready to send.";
+    });
+  </script>
 </body>
 </html>
