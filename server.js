@@ -80,7 +80,7 @@ const MAX_SPEED = 1.25;
 const MIN_PITCH = -5;
 const MAX_PITCH = 5;
 
-const DB_PATH = path.join(__dirname, "data.sqlite");
+const DB_PATH = "/tmp/data.sqlite";
 const CACHE_DIR = path.join(__dirname, "cache");
 
 if (!fs.existsSync(CACHE_DIR)) {
