@@ -1,113 +1,189 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign Up - VoicePunjabAI</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
-  <div class="wrap">
-    <header class="topbar">
-      <div class="brand">
-        <a href="index.html" class="brand-link">
-          <div class="logo-wrap">
-            <img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo" />
-          </div>
-          <div>
-            <div class="title">VoicePunjabAI</div>
-            <div class="subtitle">Punjabi Text-to-Speech &amp; Translation</div>
-          </div>
-        </a>
-      </div>
 
-      <nav class="nav">
-        <a href="index.html">Home</a>
-        <a href="pricing.html">Pricing</a>
-        <a href="about.html">About</a>
-        <a href="contact.html">Contact</a>
-        <a href="login.html">Login</a>
-        <a href="signup.html" class="active">Sign Up</a>
-      </nav>
+<div class="wrap">
 
-      <div class="header-right">
-        <div class="status ok">Create Account</div>
-      </div>
-    </header>
+<header class="topbar">
 
-    <section class="intro-strip">
-      <p>
-        Create a free account to track usage and use VoicePunjabAI with account-based limits.
-      </p>
-    </section>
+<div class="brand">
+<a href="index.html" class="brand-link">
 
-    <section class="card" style="margin-top:20px; max-width:700px;">
-      <h2>Sign Up</h2>
-      <p class="small">Create your VoicePunjabAI account.</p>
+<div class="logo-wrap">
+<img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo">
+</div>
 
-      <form id="signupForm" style="margin-top:14px;">
-        <label class="labelBlock" for="signupName">Name</label>
-        <input type="text" id="signupName" placeholder="Enter your name" required>
+<div>
+<div class="title">VoicePunjabAI</div>
+<div class="subtitle">Punjabi Text-to-Speech & Translation</div>
+</div>
 
-        <label class="labelBlock" for="signupEmail">Email</label>
-        <input type="email" id="signupEmail" placeholder="Enter your email" required>
+</a>
+</div>
 
-        <label class="labelBlock" for="signupPassword">Password</label>
-        <input type="password" id="signupPassword" placeholder="At least 6 characters" required>
+<nav class="nav">
+<a href="index.html">Home</a>
+<a href="pricing.html">Pricing</a>
+<a href="about.html">About</a>
+<a href="contact.html">Contact</a>
+<a href="login.html">Login</a>
+<a href="signup.html" class="active">Sign Up</a>
+</nav>
 
-        <div class="btnrow">
-          <button type="submit" class="primary">Create Account</button>
-          <a href="login.html" class="btn-link secondary">Already have an account?</a>
-        </div>
+<div class="header-right">
+<div class="status ok">Create Account</div>
+</div>
 
-        <div id="signupNote" class="small">A verification email will be sent after signup.</div>
-      </form>
-    </section>
+</header>
 
-    <footer class="site-footer">
-      <div class="footer-bottom">
-        <div class="footer-note">© 2026 VoicePunjabAI. All rights reserved.</div>
-      </div>
-    </footer>
-  </div>
 
-  <script>
-    const API_BASE = "https://voicepunjab-api-777821135954.us-central1.run.app";
-    const signupForm = document.getElementById("signupForm");
-    const signupNote = document.getElementById("signupNote");
+<section class="intro-strip">
 
-    signupForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
+<p>
+Create a free account to track usage and use VoicePunjabAI with account-based limits.
+</p>
 
-      const name = document.getElementById("signupName").value.trim();
-      const email = document.getElementById("signupEmail").value.trim();
-      const password = document.getElementById("signupPassword").value;
+</section>
 
-      signupNote.textContent = "Creating account...";
 
-      try {
-        const res = await fetch(API_BASE + "/api/signup", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ name, email, password })
-        });
+<section class="card" style="margin-top:20px; max-width:700px;">
 
-        const data = await res.json();
+<h2>Sign Up</h2>
 
-        if (!res.ok) {
-          throw new Error(data.error || "Signup failed.");
-        }
+<p class="small">
+Create your VoicePunjabAI account.
+</p>
 
-        signupNote.textContent =
-          data.message || "Account created. Please check your email to verify your account.";
 
-        signupForm.reset();
-      } catch (err) {
-        signupNote.textContent = err.message || "Signup failed.";
-      }
-    });
-  </script>
+<form id="signupForm" style="margin-top:14px;">
+
+<label class="labelBlock" for="signupName">Name</label>
+<input type="text" id="signupName" placeholder="Enter your name" required>
+
+
+<label class="labelBlock" for="signupEmail">Email</label>
+<input type="email" id="signupEmail" placeholder="Enter your email" required>
+
+
+<label class="labelBlock" for="signupPassword">Password</label>
+<input type="password" id="signupPassword" placeholder="At least 6 characters" required>
+
+
+<div class="btnrow">
+
+<button type="submit" class="primary">
+Create Account
+</button>
+
+<a href="login.html" class="btn-link secondary">
+Already have an account?
+</a>
+
+</div>
+
+
+<div id="signupNote" class="small">
+A verification email will be sent after signup.
+</div>
+
+</form>
+
+</section>
+
+
+<footer class="site-footer">
+
+<div class="footer-bottom">
+<div class="footer-note">
+© 2026 VoicePunjabAI. All rights reserved.
+</div>
+</div>
+
+</footer>
+
+</div>
+
+
+<script>
+
+const API_BASE =
+"https://voicepunjab-api-777821135954.us-central1.run.app";
+
+const signupForm = document.getElementById("signupForm");
+const signupNote = document.getElementById("signupNote");
+
+
+signupForm.addEventListener("submit", async (e)=>{
+
+e.preventDefault();
+
+const name =
+document.getElementById("signupName").value.trim();
+
+const email =
+document.getElementById("signupEmail").value.trim();
+
+const password =
+document.getElementById("signupPassword").value;
+
+
+signupNote.textContent = "Creating account...";
+
+
+try{
+
+const res = await fetch(API_BASE + "/api/signup",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body: JSON.stringify({
+name,
+email,
+password
+})
+
+});
+
+
+const data = await res.json();
+
+
+if(!res.ok){
+
+throw new Error(
+data.error || "Signup failed."
+);
+
+}
+
+
+signupNote.innerHTML =
+"Account created. Please check your email to verify your account.<br><small>If you do not see the email, please check your Spam or Junk folder.</small>";
+
+signupForm.reset();
+
+}catch(err){
+
+signupNote.textContent =
+err.message || "Signup failed.";
+
+}
+
+});
+
+
+</script>
+
 </body>
 </html>
