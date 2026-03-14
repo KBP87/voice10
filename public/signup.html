@@ -1,11 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign Up - VoicePunjabAI</title>
-  <link rel="stylesheet" href="css/style.css">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Sign Up - VoicePunjabAI</title>
+
+<link rel="stylesheet" href="css/style.css">
+
+<style>
+
+.signup-card{
+max-width:700px;
+margin:auto;
+}
+
+.note-success{
+color:#1a7f37;
+margin-top:10px;
+}
+
+.note-error{
+color:#d1242f;
+margin-top:10px;
+}
+
+</style>
+
 </head>
+
 
 <body>
 
@@ -14,6 +38,7 @@
 <header class="topbar">
 
 <div class="brand">
+
 <a href="index.html" class="brand-link">
 
 <div class="logo-wrap">
@@ -26,16 +51,21 @@
 </div>
 
 </a>
+
 </div>
 
+
 <nav class="nav">
+
 <a href="index.html">Home</a>
 <a href="pricing.html">Pricing</a>
 <a href="about.html">About</a>
 <a href="contact.html">Contact</a>
 <a href="login.html">Login</a>
 <a href="signup.html" class="active">Sign Up</a>
+
 </nav>
+
 
 <div class="header-right">
 <div class="status ok">Create Account</div>
@@ -47,38 +77,39 @@
 <section class="intro-strip">
 
 <p>
-Create a free account to track usage and use VoicePunjabAI with account-based limits.
+Create a free account to track usage and unlock higher limits.
 </p>
 
 </section>
 
 
-<section class="card" style="margin-top:20px; max-width:700px;">
 
-<h2>Sign Up</h2>
+<section class="card signup-card">
+
+<h2>Create Your Account</h2>
 
 <p class="small">
-Create your VoicePunjabAI account.
+Sign up to track your daily usage and access VoicePunjabAI features.
 </p>
 
 
-<form id="signupForm" style="margin-top:14px;">
+<form id="signupForm">
 
-<label class="labelBlock" for="signupName">Name</label>
-<input type="text" id="signupName" placeholder="Enter your name" required>
-
-
-<label class="labelBlock" for="signupEmail">Email</label>
-<input type="email" id="signupEmail" placeholder="Enter your email" required>
+<label class="labelBlock">Name</label>
+<input type="text" id="signupName" required placeholder="Enter your name">
 
 
-<label class="labelBlock" for="signupPassword">Password</label>
-<input type="password" id="signupPassword" placeholder="At least 6 characters" required>
+<label class="labelBlock">Email</label>
+<input type="email" id="signupEmail" required placeholder="Enter your email">
+
+
+<label class="labelBlock">Password</label>
+<input type="password" id="signupPassword" required placeholder="Minimum 6 characters">
 
 
 <div class="btnrow">
 
-<button type="submit" class="primary">
+<button class="primary" type="submit">
 Create Account
 </button>
 
@@ -98,6 +129,7 @@ A verification email will be sent after signup.
 </section>
 
 
+
 <footer class="site-footer">
 
 <div class="footer-bottom">
@@ -111,18 +143,24 @@ A verification email will be sent after signup.
 </div>
 
 
+
 <script>
 
 const API_BASE =
 "https://voicepunjab-api-777821135954.us-central1.run.app";
 
-const signupForm = document.getElementById("signupForm");
-const signupNote = document.getElementById("signupNote");
+const signupForm =
+document.getElementById("signupForm");
+
+const signupNote =
+document.getElementById("signupNote");
+
 
 
 signupForm.addEventListener("submit", async (e)=>{
 
 e.preventDefault();
+
 
 const name =
 document.getElementById("signupName").value.trim();
@@ -134,7 +172,8 @@ const password =
 document.getElementById("signupPassword").value;
 
 
-signupNote.textContent = "Creating account...";
+signupNote.className="small";
+signupNote.textContent="Creating account...";
 
 
 try{
@@ -161,6 +200,8 @@ const data = await res.json();
 
 if(!res.ok){
 
+signupNote.className="note-error";
+
 throw new Error(
 data.error || "Signup failed."
 );
@@ -168,12 +209,20 @@ data.error || "Signup failed."
 }
 
 
+signupNote.className="note-success";
+
 signupNote.innerHTML =
-"Account created. Please check your email to verify your account.<br><small>If you do not see the email, please check your Spam or Junk folder.</small>";
+"✅ Account created successfully.<br><br>" +
+"📧 Please check your email to verify your account.<br>" +
+"If you do not see the email, please check your <b>Spam</b> or <b>Junk</b> folder.";
+
 
 signupForm.reset();
 
+
 }catch(err){
+
+signupNote.className="note-error";
 
 signupNote.textContent =
 err.message || "Signup failed.";
@@ -182,8 +231,8 @@ err.message || "Signup failed.";
 
 });
 
-
 </script>
+
 
 </body>
 </html>
