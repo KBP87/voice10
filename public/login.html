@@ -36,7 +36,7 @@
     </header>
 
     <section class="intro-strip">
-      <p>
+      <p id="verifyBanner">
         Log in to track your usage by account and access your plan limits.
       </p>
     </section>
@@ -59,6 +59,20 @@
 
         <div id="loginNote" class="small">Use your VoicePunjabAI account to continue.</div>
       </form>
+
+      <hr style="margin:20px 0; border:none; border-top:1px solid #e3e8f4;">
+
+      <h3 style="margin-top:0;">Resend Verification Email</h3>
+      <form id="resendForm" style="margin-top:10px;">
+        <label class="labelBlock" for="resendEmail">Email</label>
+        <input type="email" id="resendEmail" placeholder="Enter your email" required>
+
+        <div class="btnrow">
+          <button type="submit">Resend Verification</button>
+        </div>
+
+        <div id="resendNote" class="small">Use this if you did not receive your verification email.</div>
+      </form>
     </section>
 
     <footer class="site-footer">
@@ -72,6 +86,18 @@
     const API_BASE = "https://voicepunjab-api-777821135954.us-central1.run.app";
     const loginForm = document.getElementById("loginForm");
     const loginNote = document.getElementById("loginNote");
+    const resendForm = document.getElementById("resendForm");
+    const resendNote = document.getElementById("resendNote");
+    const verifyBanner = document.getElementById("verifyBanner");
+
+    const params = new URLSearchParams(window.location.search);
+    const verified = params.get("verified");
+
+    if (verified === "1") {
+      verifyBanner.textContent = "Your email has been verified. You can log in now.";
+    } else if (verified === "0") {
+      verifyBanner.textContent = "Verification link is invalid or expired. Please request a new verification email.";
+    }
 
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -103,6 +129,33 @@
         window.location.href = "index.html";
       } catch (err) {
         loginNote.textContent = err.message || "Login failed.";
+      }
+    });
+
+    resendForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById("resendEmail").value.trim();
+      resendNote.textContent = "Sending verification email...";
+
+      try {
+        const res = await fetch(API_BASE + "/api/resend-verification", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Could not resend verification email.");
+        }
+
+        resendNote.textContent = data.message || "Verification email sent.";
+      } catch (err) {
+        resendNote.textContent = err.message || "Could not resend verification email.";
       }
     });
   </script>

@@ -13,6 +13,7 @@ const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
@@ -20,6 +21,24 @@ const app = express();
 
 const PORT = Number(process.env.PORT || 8080);
 const JWT_SECRET = String(process.env.JWT_SECRET || "change-me-now").trim();
+
+const APP_BASE_URL = String(
+  process.env.APP_BASE_URL || "https://voicepunjabai.com"
+).trim();
+
+const API_PUBLIC_BASE_URL = String(
+  process.env.API_PUBLIC_BASE_URL ||
+    "https://voicepunjab-api-777821135954.us-central1.run.app"
+).trim();
+
+const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || "false").trim() === "true";
+const SMTP_USER = String(process.env.SMTP_USER || "").trim();
+const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
+const SMTP_FROM = String(
+  process.env.SMTP_FROM || "VoicePunjabAI <support@voicepunjabai.com>"
+).trim();
 
 const GOOGLE_CLOUD_PROJECT =
   process.env.GOOGLE_CLOUD_PROJECT ||
@@ -89,6 +108,20 @@ if (!fs.existsSync(CACHE_DIR)) {
 
 const db = new sqlite3.Database(DB_PATH);
 
+let mailer = null;
+
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  mailer = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: {
+      user: SMTP_USER,
+      pass: SMTP_PASS
+    }
+  });
+}
+
 function initDatabase() {
   db.serialize(() => {
     db.run(`
@@ -98,8 +131,25 @@ function initDatabase() {
         email TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         plan TEXT NOT NULL DEFAULT 'free',
+        is_verified INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS email_verification_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_email_verification_user
+      ON email_verification_tokens (user_id, expires_at)
     `);
 
     db.run(`
@@ -282,7 +332,8 @@ function createAuthToken(user) {
     {
       id: user.id,
       email: user.email,
-      plan: user.plan
+      plan: user.plan,
+      is_verified: !!user.is_verified
     },
     JWT_SECRET,
     { expiresIn: "30d" }
@@ -294,8 +345,63 @@ function sanitizeUser(user) {
     id: user.id,
     name: user.name,
     email: user.email,
-    plan: user.plan
+    plan: user.plan,
+    is_verified: !!user.is_verified
   };
+}
+
+function makeVerificationToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+async function createVerificationToken(userId) {
+  const token = makeVerificationToken();
+
+  await dbRun(
+    `DELETE FROM email_verification_tokens WHERE user_id = ?`,
+    [userId]
+  );
+
+  await dbRun(
+    `
+      INSERT INTO email_verification_tokens (user_id, token, expires_at)
+      VALUES (?, ?, datetime('now', '+24 hours'))
+    `,
+    [userId, token]
+  );
+
+  return token;
+}
+
+async function sendVerificationEmail(user, token) {
+  const verifyUrl = `${API_PUBLIC_BASE_URL}/api/verify-email?token=${encodeURIComponent(token)}`;
+
+  if (!mailer) {
+    console.log("Verification email not sent because SMTP is not configured.");
+    console.log("Verification URL:", verifyUrl);
+    return;
+  }
+
+  await mailer.sendMail({
+    from: SMTP_FROM,
+    to: user.email,
+    subject: "Verify your VoicePunjabAI email",
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Verify your VoicePunjabAI account</h2>
+        <p>Hello ${user.name},</p>
+        <p>Please verify your email address by clicking the button below:</p>
+        <p>
+          <a href="${verifyUrl}" style="display:inline-block;padding:12px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">
+            Verify Email
+          </a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p>${verifyUrl}</p>
+        <p>This link expires in 24 hours.</p>
+      </div>
+    `
+  });
 }
 
 async function loadUserFromToken(req, res, next) {
@@ -316,7 +422,7 @@ async function loadUserFromToken(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const user = await dbGet(
-      `SELECT id, name, email, plan FROM users WHERE id = ?`,
+      `SELECT id, name, email, plan, is_verified FROM users WHERE id = ?`,
       [decoded.id]
     );
 
@@ -334,6 +440,7 @@ function requireAuth(req, res, next) {
       error: "Login required."
     });
   }
+
   next();
 }
 
@@ -507,6 +614,16 @@ const signupLimiter = rateLimit({
   }
 });
 
+const resendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many verification requests. Please try again later."
+  }
+});
+
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -528,6 +645,7 @@ const convertLimiter = rateLimit({
 });
 
 app.use("/api/signup", signupLimiter);
+app.use("/api/resend-verification", resendLimiter);
 app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
 
@@ -572,28 +690,117 @@ app.post("/api/signup", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const result = await dbRun(
-      `INSERT INTO users (name, email, password_hash, plan)
-       VALUES (?, ?, ?, 'free')`,
+      `INSERT INTO users (name, email, password_hash, plan, is_verified)
+       VALUES (?, ?, ?, 'free', 0)`,
       [name, email, passwordHash]
     );
 
     const user = await dbGet(
-      `SELECT id, name, email, plan FROM users WHERE id = ?`,
+      `SELECT id, name, email, plan, is_verified FROM users WHERE id = ?`,
       [result.lastID]
     );
 
-    const token = createAuthToken(user);
+    const token = await createVerificationToken(user.id);
+    await sendVerificationEmail(user, token);
 
     return res.json({
-      message: "Signup successful.",
-      token,
-      user: sanitizeUser(user)
+      message: "Account created. Please check your email and verify your account before logging in."
     });
   } catch (err) {
     console.error("signup error:", err);
     return res.status(500).json({
       error: "Signup failed."
     });
+  }
+});
+
+app.post("/api/resend-verification", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required."
+      });
+    }
+
+    const user = await dbGet(
+      `SELECT id, name, email, plan, is_verified FROM users WHERE email = ?`,
+      [email]
+    );
+
+    if (!user) {
+      return res.json({
+        message: "If an account exists, a verification email has been sent."
+      });
+    }
+
+    if (Number(user.is_verified) === 1) {
+      return res.json({
+        message: "This email is already verified."
+      });
+    }
+
+    const token = await createVerificationToken(user.id);
+    await sendVerificationEmail(user, token);
+
+    return res.json({
+      message: "Verification email sent."
+    });
+  } catch (err) {
+    console.error("resend verification error:", err);
+    return res.status(500).json({
+      error: "Could not resend verification email."
+    });
+  }
+});
+
+app.get("/api/verify-email", async (req, res) => {
+  try {
+    const token = normalizeText(req.query?.token);
+
+    if (!token) {
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    const row = await dbGet(
+      `
+        SELECT evt.id, evt.user_id, evt.expires_at, u.email
+        FROM email_verification_tokens evt
+        INNER JOIN users u ON u.id = evt.user_id
+        WHERE evt.token = ?
+      `,
+      [token]
+    );
+
+    if (!row) {
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    const isExpired = await dbGet(
+      `SELECT CASE WHEN datetime(?) < datetime('now') THEN 1 ELSE 0 END AS expired`,
+      [row.expires_at]
+    );
+
+    if (Number(isExpired?.expired || 0) === 1) {
+      await dbRun(`DELETE FROM email_verification_tokens WHERE id = ?`, [row.id]);
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    await dbRun(
+      `UPDATE users SET is_verified = 1 WHERE id = ?`,
+      [row.user_id]
+    );
+
+    await dbRun(
+      `DELETE FROM email_verification_tokens WHERE user_id = ?`,
+      [row.user_id]
+    );
+
+    return res.redirect(`${APP_BASE_URL}/login.html?verified=1`);
+  } catch (err) {
+    console.error("verify email error:", err);
+    return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
   }
 });
 
@@ -627,11 +834,18 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
+    if (Number(userRow.is_verified) !== 1) {
+      return res.status(403).json({
+        error: "Please verify your email before logging in."
+      });
+    }
+
     const user = {
       id: userRow.id,
       name: userRow.name,
       email: userRow.email,
-      plan: userRow.plan
+      plan: userRow.plan,
+      is_verified: userRow.is_verified
     };
 
     const token = createAuthToken(user);
@@ -1092,4 +1306,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("CACHE_DIR =", CACHE_DIR);
   console.log("JWT_SECRET set =", !!JWT_SECRET);
   console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
+  console.log("SMTP configured =", !!mailer);
 });

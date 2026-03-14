@@ -60,7 +60,7 @@
           <a href="login.html" class="btn-link secondary">Already have an account?</a>
         </div>
 
-        <div id="signupNote" class="small">Your free plan will be created automatically.</div>
+        <div id="signupNote" class="small">A verification email will be sent after signup.</div>
       </form>
     </section>
 
@@ -86,10 +86,7 @@
       signupNote.textContent = "Creating account...";
 
       try {
-        const url = API_BASE + "/api/signup";
-        console.log("Signup URL:", url);
-
-        const res = await fetch(url, {
+        const res = await fetch(API_BASE + "/api/signup", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -97,25 +94,16 @@
           body: JSON.stringify({ name, email, password })
         });
 
-        const text = await res.text();
-        console.log("Raw signup response:", text);
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          throw new Error("Server returned HTML instead of JSON. Check the signup API URL.");
-        }
+        const data = await res.json();
 
         if (!res.ok) {
           throw new Error(data.error || "Signup failed.");
         }
 
-        localStorage.setItem("vp_token", data.token);
-        localStorage.setItem("vp_user", JSON.stringify(data.user));
+        signupNote.textContent =
+          data.message || "Account created. Please check your email to verify your account.";
 
-        signupNote.textContent = "Account created successfully. Redirecting...";
-        window.location.href = "index.html";
+        signupForm.reset();
       } catch (err) {
         signupNote.textContent = err.message || "Signup failed.";
       }
