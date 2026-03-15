@@ -87,11 +87,7 @@ const ALLOWED_ORIGINS =
     ? "*"
     : ALLOWED_ORIGIN_RAW.split(",").map((s) => s.trim()).filter(Boolean);
 
-const ALLOWED_VOICES = [
-  "pa-IN-Standard-A",
-  "pa-IN-Standard-B"
-];
-
+const ALLOWED_VOICES = ["pa-IN-Standard-A", "pa-IN-Standard-B"];
 const MAX_TTS_TEXT_LENGTH = 1000;
 const MAX_CONVERT_TEXT_LENGTH = 500;
 const MIN_SPEED = 0.75;
@@ -150,6 +146,22 @@ function initDatabase() {
     db.run(`
       CREATE INDEX IF NOT EXISTS idx_email_verification_user
       ON email_verification_tokens (user_id, expires_at)
+    `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+
+    db.run(`
+      CREATE INDEX IF NOT EXISTS idx_password_reset_user
+      ON password_reset_tokens (user_id, expires_at)
     `);
 
     db.run(`
@@ -386,6 +398,15 @@ async function sendVerificationEmail(user, token) {
     from: SMTP_FROM,
     to: user.email,
     subject: "Verify your VoicePunjabAI email",
+    text: `Hello ${user.name},
+
+Please verify your email by opening this link:
+${verifyUrl}
+
+This link expires in 24 hours.
+
+VoicePunjabAI
+${APP_BASE_URL}`,
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6;">
         <h2>Verify your VoicePunjabAI account</h2>
@@ -399,6 +420,72 @@ async function sendVerificationEmail(user, token) {
         <p>Or copy and paste this link into your browser:</p>
         <p>${verifyUrl}</p>
         <p>This link expires in 24 hours.</p>
+        <p>VoicePunjabAI<br>${APP_BASE_URL}</p>
+      </div>
+    `
+  });
+}
+
+async function createPasswordResetToken(userId) {
+  const token = makeVerificationToken();
+
+  await dbRun(
+    `DELETE FROM password_reset_tokens WHERE user_id = ?`,
+    [userId]
+  );
+
+  await dbRun(
+    `
+      INSERT INTO password_reset_tokens (user_id, token, expires_at)
+      VALUES (?, ?, datetime('now', '+1 hour'))
+    `,
+    [userId, token]
+  );
+
+  return token;
+}
+
+async function sendPasswordResetEmail(user, token) {
+  const resetUrl = `${APP_BASE_URL}/reset-password.html?token=${encodeURIComponent(token)}`;
+
+  if (!mailer) {
+    console.log("Password reset email not sent because SMTP is not configured.");
+    console.log("Password reset URL:", resetUrl);
+    return;
+  }
+
+  await mailer.sendMail({
+    from: SMTP_FROM,
+    to: user.email,
+    subject: "Reset your VoicePunjabAI password",
+    text: `Hello ${user.name},
+
+We received a request to reset your VoicePunjabAI password.
+
+Open this link to set a new password:
+${resetUrl}
+
+This link expires in 1 hour.
+
+If you did not request this, you can ignore this email.
+
+VoicePunjabAI
+${APP_BASE_URL}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h2>Reset your VoicePunjabAI password</h2>
+        <p>Hello ${user.name},</p>
+        <p>We received a request to reset your password.</p>
+        <p>
+          <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">
+            Reset Password
+          </a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p>${resetUrl}</p>
+        <p>This link expires in 1 hour.</p>
+        <p>If you did not request this, you can ignore this email.</p>
+        <p>VoicePunjabAI<br>${APP_BASE_URL}</p>
       </div>
     `
   });
@@ -624,6 +711,16 @@ const resendLimiter = rateLimit({
   }
 });
 
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many password reset requests. Please try again later."
+  }
+});
+
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
@@ -646,6 +743,7 @@ const convertLimiter = rateLimit({
 
 app.use("/api/signup", signupLimiter);
 app.use("/api/resend-verification", resendLimiter);
+app.use("/api/forgot-password", forgotPasswordLimiter);
 app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
 
@@ -704,7 +802,8 @@ app.post("/api/signup", async (req, res) => {
     await sendVerificationEmail(user, token);
 
     return res.json({
-      message: "Account created. Please check your email and verify your account before logging in."
+      message:
+        "Account created. Please check your email and verify your account before logging in."
     });
   } catch (err) {
     console.error("signup error:", err);
@@ -859,6 +958,108 @@ app.post("/api/login", async (req, res) => {
     console.error("login error:", err);
     return res.status(500).json({
       error: "Login failed."
+    });
+  }
+});
+
+app.post("/api/forgot-password", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required."
+      });
+    }
+
+    const user = await dbGet(
+      `SELECT id, name, email FROM users WHERE email = ?`,
+      [email]
+    );
+
+    if (!user) {
+      return res.json({
+        message: "If an account exists for this email, a reset link has been sent."
+      });
+    }
+
+    const token = await createPasswordResetToken(user.id);
+    await sendPasswordResetEmail(user, token);
+
+    return res.json({
+      message: "If an account exists for this email, a reset link has been sent."
+    });
+  } catch (err) {
+    console.error("forgot password error:", err);
+    return res.status(500).json({
+      error: "Could not process password reset request."
+    });
+  }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const token = normalizeText(req.body?.token);
+    const password = String(req.body?.password || "");
+
+    if (!token || !password) {
+      return res.status(400).json({
+        error: "Token and new password are required."
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long."
+      });
+    }
+
+    const row = await dbGet(
+      `
+        SELECT prt.id, prt.user_id, prt.expires_at
+        FROM password_reset_tokens prt
+        WHERE prt.token = ?
+      `,
+      [token]
+    );
+
+    if (!row) {
+      return res.status(400).json({
+        error: "Invalid or expired reset link."
+      });
+    }
+
+    const isExpired = await dbGet(
+      `SELECT CASE WHEN datetime(?) < datetime('now') THEN 1 ELSE 0 END AS expired`,
+      [row.expires_at]
+    );
+
+    if (Number(isExpired?.expired || 0) === 1) {
+      await dbRun(`DELETE FROM password_reset_tokens WHERE id = ?`, [row.id]);
+      return res.status(400).json({
+        error: "Invalid or expired reset link."
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await dbRun(
+      `UPDATE users SET password_hash = ? WHERE id = ?`,
+      [passwordHash, row.user_id]
+    );
+
+    await dbRun(
+      `DELETE FROM password_reset_tokens WHERE user_id = ?`,
+      [row.user_id]
+    );
+
+    return res.json({
+      message: "Password updated successfully. You can now log in."
+    });
+  } catch (err) {
+    console.error("reset password error:", err);
+    return res.status(500).json({
+      error: "Could not reset password."
     });
   }
 });
