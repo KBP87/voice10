@@ -1,341 +1,954 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoicePunjabAI Punjabi TTS</title>
+  <meta
+    name="description"
+    content="VoicePunjabAI converts Punjabi Gurmukhi text into natural MP3 voice. Translate English to Punjabi, use the Punjabi keyboard, and download audio instantly."
+  />
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    .usage-card {
+      margin-top: 20px;
+    }
 
-<title>VoicePunjabAI - Punjabi Text to Speech</title>
+    .usage-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
 
-<link rel="stylesheet" href="css/style.css">
+    .plan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      border: 1px solid #dbe4ff;
+      font-weight: 800;
+      font-size: 13px;
+    }
 
-<style>
+    .usage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
 
-.usage-grid{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:20px;
-margin-top:20px;
-}
+    .usage-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      background: #fcfdff;
+    }
 
-.feature-grid{
-display:grid;
-grid-template-columns:1fr 1fr 1fr;
-gap:20px;
-margin-top:20px;
-}
+    .usage-box h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
 
-.step-grid{
-display:grid;
-grid-template-columns:1fr 1fr 1fr;
-gap:20px;
-margin-top:20px;
-}
+    .usage-big {
+      font-size: 24px;
+      font-weight: 800;
+      margin: 6px 0;
+    }
 
-.step-number{
-width:32px;
-height:32px;
-border-radius:50%;
-background:#eef3ff;
-display:flex;
-align-items:center;
-justify-content:center;
-font-weight:600;
-margin-bottom:10px;
-}
+    .progress-wrap {
+      width: 100%;
+      height: 10px;
+      background: #e9edf8;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
 
-@media(max-width:900px){
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
 
-.usage-grid,
-.feature-grid,
-.step-grid{
-grid-template-columns:1fr;
-}
+    .usage-note {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
 
-}
+    .upgrade-btn {
+      text-decoration: none;
+      display: inline-block;
+      padding: 11px 16px;
+      border-radius: 14px;
+      font-weight: 800;
+      font-size: 14px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      border: 1px solid var(--primary);
+      color: #fff;
+      transition: .2s ease;
+    }
 
-</style>
+    .upgrade-btn:hover {
+      box-shadow: 0 10px 20px rgba(79,70,229,.24);
+      transform: translateY(-1px);
+    }
+
+    .account-email {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      word-break: break-word;
+    }
+
+    .header-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      min-width: 260px;
+    }
+
+    .header-usage {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+      line-height: 1.5;
+      background: #f8faff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      max-width: 320px;
+    }
+
+    .header-usage strong {
+      color: var(--text);
+    }
+
+    .feature-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .feature-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fcfdff;
+    }
+
+    .feature-box h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .feature-box p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .step-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+    }
+
+    .step-no {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .trust-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .trust-pill {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fcfdff;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .prefill-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #eef7ff;
+      border: 1px solid #d8e9ff;
+      color: #24507a;
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .header-right {
+        width: 100%;
+        align-items: flex-start;
+      }
+
+      .header-usage {
+        text-align: left;
+        max-width: 100%;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .usage-grid,
+      .feature-grid-3,
+      .steps-grid,
+      .trust-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
 </head>
-
 <body>
-
-<div class="wrap">
-
-<header class="topbar">
-
-<div class="brand">
-<a href="index.html" class="brand-link">
-
-<div class="logo-wrap">
-<img src="images/logo.png" class="site-logo">
-</div>
-
-<div>
-<div class="title">VoicePunjabAI</div>
-<div class="subtitle">Punjabi Text-to-Speech</div>
-</div>
-
-</a>
-</div>
-
-<nav class="nav">
-<a href="index.html" class="active">Home</a>
-<a href="pricing.html">Pricing</a>
-<a href="about.html">About</a>
-<a href="contact.html">Contact</a>
-<a href="login.html">Login</a>
-<a href="signup.html">Sign Up</a>
-</nav>
-
-<div class="header-right">
-<div class="status ok">Live</div>
-</div>
-
-</header>
-
-
-<section class="intro-strip">
-
-<p>
-Convert Punjabi text into natural speech instantly. Generate MP3 audio, translate English to Punjabi, and download your audio in seconds.
-</p>
-
-</section>
-
-
-<section class="usage-grid">
-
-<div class="card">
-
-<h3>Account</h3>
-
-<div id="userName">Guest</div>
-<div class="small" id="userEmail"></div>
-
-</div>
-
-<div class="card">
-
-<h3>TTS Usage Today</h3>
-
-<div class="usage-number">
-<span id="ttsUsed">0</span> / 500
-</div>
-
-<div class="progressbar">
-<div id="ttsBar"></div>
-</div>
-
-<div class="small">500 characters left today</div>
-
-</div>
-
-<div class="card">
-
-<h3>Translation Usage Today</h3>
-
-<div class="usage-number">
-<span id="transUsed">0</span> / 300
-</div>
-
-<div class="progressbar">
-<div id="transBar"></div>
-</div>
-
-<div class="small">300 characters left today</div>
-
-</div>
-
-</section>
-
-
-
-<section class="card">
-
-<h2>Why Use VoicePunjabAI?</h2>
-
-<div class="feature-grid">
-
-<div class="feature-box">
-
-<h3>Punjabi-first workflow</h3>
-
-<p class="small">
-Built specifically for Punjabi text, Punjabi voice generation, and English to Punjabi conversion.
-</p>
-
-</div>
-
-
-<div class="feature-box">
-
-<h3>Fast MP3 generation</h3>
-
-<p class="small">
-Generate playable MP3 audio quickly and download it for your own content workflow.
-</p>
-
-</div>
-
-
-<div class="feature-box">
-
-<h3>Easy for creators and learners</h3>
-
-<p class="small">
-Use it for Punjabi YouTube videos, educational content, audio lessons, and narration projects.
-</p>
-
-</div>
-
-</div>
-
-</section>
-
-
-
-<section class="card">
-
-<h2>How It Works</h2>
-
-<div class="step-grid">
-
-<div class="step-box">
-
-<div class="step-number">1</div>
-
-<h3>Enter or translate text</h3>
-
-<p class="small">
-Type Punjabi directly, use the Punjabi keyboard, or convert English into Punjabi first.
-</p>
-
-</div>
-
-
-<div class="step-box">
-
-<div class="step-number">2</div>
-
-<h3>Choose voice settings</h3>
-
-<p class="small">
-Select male or female voice, adjust speed and pitch, and prepare the exact tone you want.
-</p>
-
-</div>
-
-
-<div class="step-box">
-
-<div class="step-number">3</div>
-
-<h3>Generate and download MP3</h3>
-
-<p class="small">
-Create audio instantly, play it in the browser, and download the MP3 when ready.
-</p>
-
-</div>
-
-</div>
-
-</section>
-
-
-
-<footer class="site-footer">
-
-<div class="footer-top">
-
-<div class="footer-brand">
-
-<div class="footer-title">VoicePunjabAI</div>
-
-<p class="footer-text">
-Punjabi Text-to-Speech and translation tool for generating natural MP3 audio from Punjabi Gurmukhi text.
-</p>
-
-</div>
-
-<div class="footer-links">
-
-<div class="footer-col">
-<h3>Product</h3>
-<a href="index.html">Home</a>
-<a href="pricing.html">Pricing</a>
-</div>
-
-<div class="footer-col">
-<h3>Company</h3>
-<a href="about.html">About</a>
-<a href="contact.html">Contact</a>
-</div>
-
-<div class="footer-col">
-<h3>Legal</h3>
-<a href="privacy.html">Privacy Policy</a>
-<a href="terms.html">Terms of Service</a>
-</div>
-
-</div>
-
-</div>
-
-
-<div class="footer-bottom">
-
-<div class="socials">
-
-<a href="https://www.facebook.com/profile.php?id=61582754938512"
-class="social-icon"
-target="_blank">FB</a>
-
-<a href="https://www.instagram.com/voicepunjabai/"
-class="social-icon"
-target="_blank">IG</a>
-
-</div>
-
-<div class="footer-note">
-© 2026 VoicePunjabAI. All rights reserved.
-</div>
-
-</div>
-
-</footer>
-
-</div>
-
-
-<script>
-
-const API_BASE="https://voicepunjab-api-777821135954.us-central1.run.app";
-
-async function loadStats(){
-
-try{
-
-const res=await fetch(API_BASE+"/api/usage");
-
-const data=await res.json();
-
-document.getElementById("ttsUsed").textContent=data.ttsUsed;
-document.getElementById("transUsed").textContent=data.translationUsed;
-
-document.getElementById("ttsBar").style.width=(data.ttsUsed/500*100)+"%";
-document.getElementById("transBar").style.width=(data.translationUsed/300*100)+"%";
-
-}catch(err){
-
-console.log("Stats error");
-
-}
-
-}
-
-loadStats();
-
-</script>
-
+  <div class="wrap">
+
+    <header class="topbar">
+      <div class="brand">
+        <a href="index.html" class="brand-link">
+          <div class="logo-wrap">
+            <img src="images/logo.png" alt="VoicePunjabAI logo" class="site-logo" />
+          </div>
+          <div>
+            <div class="title">VoicePunjabAI</div>
+            <div class="subtitle">Punjabi Text-to-Speech</div>
+          </div>
+        </a>
+      </div>
+
+      <nav class="nav">
+        <a href="index.html" class="active">Home</a>
+        <a href="history.html">History</a>
+        <a href="pricing.html">Pricing</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+
+      <div class="header-right">
+        <div id="authArea" class="small"></div>
+        <div id="headerUsage" class="header-usage">Loading usage...</div>
+      </div>
+    </header>
+
+    <section class="card hero-card">
+      <div class="hero-flex">
+        <div class="hero-left">
+          <h1 class="hero-title">Create Natural Punjabi Voice in Seconds</h1>
+
+          <p class="small hero-text">
+            Convert Punjabi Gurmukhi text into MP3 audio, translate English into Punjabi,
+            and type with a built-in Punjabi keyboard. VoicePunjabAI is made for creators,
+            learners, educators, and Punjabi content workflows.
+          </p>
+
+          <div class="btnrow hero-actions">
+            <a href="#toolStart" class="btn-link primary">Start Now</a>
+            <a href="pricing.html" class="btn-link secondary">View Plans</a>
+          </div>
+
+          <div class="trust-strip">
+            <div class="trust-pill">Punjabi MP3 Audio</div>
+            <div class="trust-pill">English → Punjabi</div>
+            <div class="trust-pill">Built-in Keyboard</div>
+            <div class="trust-pill">Fast Cloud Voice</div>
+          </div>
+        </div>
+
+        <div class="hero-right">
+          <div class="hero-mini-box">
+            <h3>Best for</h3>
+            <p class="small">• Punjabi narration and explainers</p>
+            <p class="small">• YouTube, reels, and voiceovers</p>
+            <p class="small">• Punjabi learning tools</p>
+            <p class="small">• Sikh / Punjabi audio content</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card usage-card">
+      <div class="usage-top">
+        <div>
+          <h2>Your Account Dashboard</h2>
+          <p class="small">Track your plan and daily usage in one place.</p>
+          <div class="plan-badge" id="planBadge">Guest Plan</div>
+        </div>
+
+        <div>
+          <a href="pricing.html" class="upgrade-btn">View Plans</a>
+        </div>
+      </div>
+
+      <div class="usage-grid">
+        <div class="usage-box">
+          <h3>Account</h3>
+          <div class="usage-big" id="accountName">Guest User</div>
+          <div class="usage-note" id="welcomeText">Using guest limits.</div>
+          <div class="account-email" id="accountEmail"></div>
+        </div>
+
+        <div class="usage-box">
+          <h3>TTS Usage Today</h3>
+          <div class="usage-big" id="ttsUsageBig">0 / 0</div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="ttsProgress"></div>
+          </div>
+          <div class="usage-note" id="ttsUsageNote">Loading...</div>
+        </div>
+
+        <div class="usage-box">
+          <h3>Translation Usage Today</h3>
+          <div class="usage-big" id="translateUsageBig">0 / 0</div>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="translateProgress"></div>
+          </div>
+          <div class="usage-note" id="translateUsageNote">Loading...</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Why Use VoicePunjabAI?</h2>
+      <div class="feature-grid-3">
+        <div class="feature-box">
+          <h3>Punjabi-first workflow</h3>
+          <p>
+            Built specifically for Punjabi text, Punjabi voice generation, and English to Punjabi conversion.
+          </p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Fast MP3 generation</h3>
+          <p>
+            Generate playable MP3 audio quickly and download it for your own content workflow.
+          </p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Easy for creators and learners</h3>
+          <p>
+            Use it for Punjabi YouTube videos, educational content, audio lessons, and narration projects.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-box">
+          <div class="step-no">1</div>
+          <h3>Enter or translate text</h3>
+          <p class="small">
+            Type Punjabi directly, use the Punjabi keyboard, or convert English into Punjabi first.
+          </p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-no">2</div>
+          <h3>Choose voice settings</h3>
+          <p class="small">
+            Select male or female voice, adjust speed and pitch, and prepare the exact tone you want.
+          </p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-no">3</div>
+          <h3>Generate and download MP3</h3>
+          <p class="small">
+            Create audio instantly, play it in the browser, and download the MP3 when ready.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <main class="grid" id="toolStart">
+      <section class="card">
+        <div class="option-head">
+          <div>
+            <h2>Option A: Punjabi Text</h2>
+            <p class="small">Paste Punjabi text and generate MP3 audio.</p>
+          </div>
+        </div>
+
+        <div id="prefillNote" class="prefill-note">
+          Previous history item loaded here. Review it and generate again if needed.
+        </div>
+
+        <textarea
+          id="textA"
+          rows="8"
+          placeholder="ਇੱਥੇ ਪੰਜਾਬੀ ਲਿਖੋ ਜਾਂ ਪੇਸਟ ਕਰੋ..."
+        ></textarea>
+
+        <div class="row3">
+          <div>
+            <label>Voice</label>
+            <select id="voiceA">
+              <option value="pa-IN-Standard-A">Female Voice</option>
+              <option value="pa-IN-Standard-B">Male Voice</option>
+            </select>
+            <div class="small" style="margin-top:6px;">
+              Tip: Change the Pitch setting to slightly change the voice tone.
+            </div>
+          </div>
+
+          <div>
+            <label>Speed</label>
+            <input id="speedA" type="number" value="1" step="0.1" min="0.75" max="1.25" />
+          </div>
+
+          <div>
+            <label>Pitch</label>
+            <input id="pitchA" type="number" value="0" min="-5" max="5" />
+          </div>
+        </div>
+
+        <div class="btnrow">
+          <button id="btnGenA" class="primary" type="button">Generate Audio</button>
+          <button id="btnDlA" type="button" disabled>Download MP3</button>
+        </div>
+
+        <audio id="playerA" controls preload="none"></audio>
+
+        <div id="ttsUsage" class="small">TTS usage today: loading...</div>
+      </section>
+
+      <section class="card">
+        <div class="option-head">
+          <div>
+            <h2>Option B: English → Punjabi</h2>
+            <p class="small">Convert English to Punjabi.</p>
+          </div>
+        </div>
+
+        <label class="labelBlock">English</label>
+        <textarea
+          id="textB"
+          rows="6"
+          placeholder="Type English text"
+        ></textarea>
+
+        <div class="btnrow">
+          <button id="btnConvert" type="button">Convert</button>
+          <button id="btnPasteToA" type="button">Paste to Option A</button>
+        </div>
+
+        <label class="labelBlock">Punjabi Result</label>
+        <textarea id="convertedB" rows="5"></textarea>
+
+        <div id="convertNote" class="small">Review the Punjabi result before generating speech.</div>
+        <div id="translateUsage" class="small">Translation usage today: loading...</div>
+      </section>
+    </main>
+
+    <section class="card keyboard-card">
+      <div class="option-head">
+        <div>
+          <h2>Option C: Punjabi Keyboard</h2>
+          <div class="small keyboard-help">
+            Type Punjabi here if you want to fix spelling before generating speech.
+          </div>
+        </div>
+      </div>
+
+      <textarea id="keyboardText" rows="4" placeholder="Type Punjabi here"></textarea>
+
+      <div class="btnrow keyboard-actions">
+        <button id="btnSpace" type="button">Space</button>
+        <button id="btnBackspace" type="button">Backspace</button>
+        <button id="btnClearKeyboard" type="button">Clear</button>
+        <button id="btnSendKeyboardToA" type="button">Send to Option A</button>
+      </div>
+
+      <div id="keyboard" class="keyboard"></div>
+    </section>
+
+    <section class="card">
+      <h2>Popular Use Cases</h2>
+      <div class="feature-grid-3">
+        <div class="feature-box">
+          <h3>YouTube and reels</h3>
+          <p>Create Punjabi narration for short videos, explainers, devotional clips, and creator content.</p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Punjabi learning</h3>
+          <p>Turn Punjabi text into audio for pronunciation support, reading practice, and learning tools.</p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Educational and cultural content</h3>
+          <p>Build Sikh, Punjabi, and educational audio content with easy text input and downloadable MP3 output.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="site-footer">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <div class="footer-title">VoicePunjabAI</div>
+          <p class="footer-text">Punjabi Text-to-Speech and translation tool.</p>
+        </div>
+
+        <div class="footer-links">
+          <div class="footer-col">
+            <h3>Product</h3>
+            <a href="index.html">Home</a>
+            <a href="history.html">History</a>
+            <a href="pricing.html">Pricing</a>
+          </div>
+
+          <div class="footer-col">
+            <h3>Company</h3>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+          </div>
+
+          <div class="footer-col">
+            <h3>Legal</h3>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div class="socials">
+          <a
+            href="https://www.facebook.com/profile.php?id=61582754938512"
+            class="social-icon"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+          >FB</a>
+
+          <a
+            href="https://www.instagram.com/voicepunjabai/"
+            class="social-icon"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+          >IG</a>
+        </div>
+
+        <div class="footer-note">© 2026 VoicePunjabAI</div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app";
+    const API_BASE = CLOUD_RUN;
+
+    const textA = document.getElementById("textA");
+    const voiceA = document.getElementById("voiceA");
+    const speedA = document.getElementById("speedA");
+    const pitchA = document.getElementById("pitchA");
+    const btnGenA = document.getElementById("btnGenA");
+    const btnDlA = document.getElementById("btnDlA");
+    const playerA = document.getElementById("playerA");
+
+    const textB = document.getElementById("textB");
+    const btnConvert = document.getElementById("btnConvert");
+    const btnPasteToA = document.getElementById("btnPasteToA");
+    const convertedB = document.getElementById("convertedB");
+    const convertNote = document.getElementById("convertNote");
+
+    const keyboardText = document.getElementById("keyboardText");
+    const keyboard = document.getElementById("keyboard");
+    const btnSpace = document.getElementById("btnSpace");
+    const btnBackspace = document.getElementById("btnBackspace");
+    const btnClearKeyboard = document.getElementById("btnClearKeyboard");
+    const btnSendKeyboardToA = document.getElementById("btnSendKeyboardToA");
+
+    const ttsUsage = document.getElementById("ttsUsage");
+    const translateUsage = document.getElementById("translateUsage");
+    const authArea = document.getElementById("authArea");
+    const headerUsage = document.getElementById("headerUsage");
+
+    const planBadge = document.getElementById("planBadge");
+    const accountName = document.getElementById("accountName");
+    const accountEmail = document.getElementById("accountEmail");
+    const welcomeText = document.getElementById("welcomeText");
+    const ttsUsageBig = document.getElementById("ttsUsageBig");
+    const ttsProgress = document.getElementById("ttsProgress");
+    const ttsUsageNote = document.getElementById("ttsUsageNote");
+    const translateUsageBig = document.getElementById("translateUsageBig");
+    const translateProgress = document.getElementById("translateProgress");
+    const translateUsageNote = document.getElementById("translateUsageNote");
+    const prefillNote = document.getElementById("prefillNote");
+
+    let lastAudioUrl = "";
+
+    function getToken() {
+      return localStorage.getItem("vp_token") || "";
+    }
+
+    function getSavedUser() {
+      try {
+        return JSON.parse(localStorage.getItem("vp_user") || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function logoutUser() {
+      localStorage.removeItem("vp_token");
+      localStorage.removeItem("vp_user");
+      window.location.href = "index.html";
+    }
+
+    function renderAuthArea() {
+      const user = getSavedUser();
+
+      if (user) {
+        authArea.innerHTML = `
+          Logged in as <strong>${user.name}</strong> (${user.plan})
+          <button id="logoutBtn" type="button" style="margin-left:10px;">Logout</button>
+        `;
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", logoutUser);
+        }
+      } else {
+        authArea.innerHTML = `
+          <a href="login.html">Login</a> /
+          <a href="signup.html">Sign Up</a>
+        `;
+      }
+    }
+
+    function capitalizePlan(plan) {
+      if (!plan) return "Guest";
+      return plan.charAt(0).toUpperCase() + plan.slice(1);
+    }
+
+    function applyHistoryDraft() {
+      try {
+        const raw = sessionStorage.getItem("vp_history_draft");
+        if (!raw) return;
+
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === "object") {
+          textA.value = draft.original_text || "";
+          voiceA.value = draft.voice || "pa-IN-Standard-A";
+          speedA.value = String(draft.speed ?? 1);
+          pitchA.value = String(draft.pitch ?? 0);
+
+          prefillNote.style.display = "block";
+
+          setTimeout(() => {
+            document.getElementById("toolStart")?.scrollIntoView({ behavior: "smooth" });
+          }, 150);
+        }
+
+        sessionStorage.removeItem("vp_history_draft");
+      } catch (err) {
+        sessionStorage.removeItem("vp_history_draft");
+      }
+    }
+
+    async function checkHealth() {
+      try {
+        await fetch(API_BASE + "/health", { cache: "no-store" });
+      } catch (err) {
+        console.log("Health check failed");
+      }
+    }
+
+    async function loadUsage() {
+      try {
+        const token = getToken();
+        const user = getSavedUser();
+
+        const res = await fetch(API_BASE + "/api/usage", {
+          cache: "no-store",
+          headers: token
+            ? { Authorization: "Bearer " + token }
+            : {}
+        });
+
+        if (!res.ok) throw new Error("usage failed");
+
+        const data = await res.json();
+
+        const ttsPercent = data.tts.limit
+          ? Math.min(100, Math.round((data.tts.used / data.tts.limit) * 100))
+          : 0;
+
+        const translatePercent = data.translate.limit
+          ? Math.min(100, Math.round((data.translate.used / data.translate.limit) * 100))
+          : 0;
+
+        ttsUsage.textContent =
+          "TTS usage today: " +
+          data.tts.used +
+          " / " +
+          data.tts.limit +
+          " characters (" +
+          data.tts.remaining +
+          " left)";
+
+        translateUsage.textContent =
+          "Translation usage today: " +
+          data.translate.used +
+          " / " +
+          data.translate.limit +
+          " characters (" +
+          data.translate.remaining +
+          " left)";
+
+        headerUsage.innerHTML =
+          "<strong>Plan:</strong> " + capitalizePlan(data.plan) +
+          " &nbsp;|&nbsp; <strong>TTS:</strong> " + data.tts.used + "/" + data.tts.limit +
+          " &nbsp;|&nbsp; <strong>Translate:</strong> " + data.translate.used + "/" + data.translate.limit;
+
+        planBadge.textContent = capitalizePlan(data.plan) + " Plan";
+        accountName.textContent = user?.name || "Guest User";
+        accountEmail.textContent = user?.email || "";
+        welcomeText.textContent =
+          data.plan === "guest"
+            ? "Using guest limits."
+            : "Your account usage is tracked by plan.";
+
+        ttsUsageBig.textContent = `${data.tts.used} / ${data.tts.limit}`;
+        ttsProgress.style.width = ttsPercent + "%";
+        ttsUsageNote.textContent = `${data.tts.remaining} characters left today`;
+
+        translateUsageBig.textContent = `${data.translate.used} / ${data.translate.limit}`;
+        translateProgress.style.width = translatePercent + "%";
+        translateUsageNote.textContent = `${data.translate.remaining} characters left today`;
+      } catch (e) {
+        ttsUsage.textContent = "TTS usage unavailable";
+        translateUsage.textContent = "Translation usage unavailable";
+
+        headerUsage.textContent = "Usage unavailable";
+
+        planBadge.textContent = "Unavailable";
+        accountName.textContent = "Unavailable";
+        accountEmail.textContent = "";
+        welcomeText.textContent = "Could not load account usage.";
+        ttsUsageBig.textContent = "Unavailable";
+        translateUsageBig.textContent = "Unavailable";
+        ttsUsageNote.textContent = "Please try again.";
+        translateUsageNote.textContent = "Please try again.";
+        ttsProgress.style.width = "0%";
+        translateProgress.style.width = "0%";
+      }
+    }
+
+    async function convertEnglishToPunjabi() {
+      const raw = textB.value.trim();
+      if (!raw) {
+        convertedB.value = "";
+        convertNote.textContent = "Please type English text first.";
+        return;
+      }
+
+      convertNote.textContent = "Converting...";
+
+      try {
+        const token = getToken();
+
+        const res = await fetch(API_BASE + "/api/convert", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: "Bearer " + token } : {})
+          },
+          body: JSON.stringify({
+            text: raw,
+            mode: "english"
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.note || data.error || "Convert failed");
+        }
+
+        convertedB.value = data.gurmukhi || "";
+        convertNote.textContent = data.note || "Converted successfully.";
+        loadUsage();
+      } catch (err) {
+        convertedB.value = raw;
+        convertNote.textContent = err.message || "Convert failed.";
+      }
+    }
+
+    async function generateTTS() {
+      const text = textA.value.trim();
+      if (!text) {
+        alert("Please type or paste Punjabi text first.");
+        return;
+      }
+
+      btnGenA.disabled = true;
+      btnDlA.disabled = true;
+
+      try {
+        const token = getToken();
+
+        const res = await fetch(API_BASE + "/api/tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: "Bearer " + token } : {})
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: voiceA.value,
+            speed: Number(speedA.value || 1),
+            pitch: Number(pitchA.value || 0)
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.audioUrl) {
+          throw new Error(data.error || data.details || "TTS failed");
+        }
+
+        lastAudioUrl = API_BASE + data.audioUrl;
+        playerA.src = lastAudioUrl;
+        await playerA.play();
+
+        btnDlA.disabled = false;
+        loadUsage();
+      } catch (err) {
+        alert("TTS failed: " + (err.message || "Unknown error"));
+      } finally {
+        btnGenA.disabled = false;
+      }
+    }
+
+    function insertAtCursor(textarea, value) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const current = textarea.value;
+
+      textarea.value = current.slice(0, start) + value + current.slice(end);
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + value.length;
+    }
+
+    const rows = [
+      ["ਅ","ਆ","ਇ","ਈ","ਉ","ਊ","ਏ","ਐ","ਓ","ਔ"],
+      ["ਾ","ਿ","ੀ","ੁ","ੂ","ੇ","ੈ","ੋ","ੌ","ੰ","ਂ","ੱ","ਃ","੍","਼"],
+      ["ਕ","ਖ","ਗ","ਘ","ਚ","ਛ","ਜ","ਝ","ਟ","ਠ"],
+      ["ਤ","ਥ","ਦ","ਧ","ਨ","ਪ","ਫ","ਬ","ਭ","ਮ"],
+      ["ਯ","ਰ","ਲ","ਵ","ਸ","ਹ","ੜ","ਸ਼","ਖ਼","ਗ਼"],
+      ["ਜ਼","ਫ਼","ਲ਼","ੴ"]
+    ];
+
+    function buildKeyboard() {
+      keyboard.innerHTML = "";
+
+      rows.forEach(r => {
+        const row = document.createElement("div");
+        row.className = "keyboard-row";
+
+        r.forEach(c => {
+          const b = document.createElement("button");
+          b.className = "key";
+          b.type = "button";
+          b.textContent = c;
+          b.addEventListener("click", () => insertAtCursor(keyboardText, c));
+          row.appendChild(b);
+        });
+
+        keyboard.appendChild(row);
+      });
+    }
+
+    btnConvert.addEventListener("click", convertEnglishToPunjabi);
+
+    btnPasteToA.addEventListener("click", () => {
+      textA.value = convertedB.value;
+      textA.focus();
+    });
+
+    btnGenA.addEventListener("click", generateTTS);
+
+    btnDlA.addEventListener("click", () => {
+      if (!lastAudioUrl) return;
+      const a = document.createElement("a");
+      a.href = lastAudioUrl;
+      a.download = "voicepunjab.mp3";
+      a.click();
+    });
+
+    btnSpace.addEventListener("click", () => {
+      insertAtCursor(keyboardText, " ");
+    });
+
+    btnBackspace.addEventListener("click", () => {
+      const start = keyboardText.selectionStart;
+      const end = keyboardText.selectionEnd;
+      const current = keyboardText.value;
+
+      if (start !== end) {
+        keyboardText.value = current.slice(0, start) + current.slice(end);
+        keyboardText.selectionStart = keyboardText.selectionEnd = start;
+      } else if (start > 0) {
+        keyboardText.value = current.slice(0, start - 1) + current.slice(end);
+        keyboardText.selectionStart = keyboardText.selectionEnd = start - 1;
+      }
+
+      keyboardText.focus();
+    });
+
+    btnClearKeyboard.addEventListener("click", () => {
+      keyboardText.value = "";
+      keyboardText.focus();
+    });
+
+    btnSendKeyboardToA.addEventListener("click", () => {
+      textA.value = keyboardText.value;
+      textA.focus();
+    });
+
+    buildKeyboard();
+    renderAuthArea();
+    applyHistoryDraft();
+    checkHealth();
+    loadUsage();
+  </script>
 </body>
 </html>
