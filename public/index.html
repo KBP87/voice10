@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VoicePunjabAI Punjabi TTS</title>
+  <meta
+    name="description"
+    content="VoicePunjabAI converts Punjabi Gurmukhi text into natural MP3 voice. Translate English to Punjabi, use the Punjabi keyboard, and download audio instantly."
+  />
   <link rel="stylesheet" href="css/style.css" />
   <style>
     .usage-card {
@@ -130,6 +134,11 @@
       margin: 0 0 12px;
     }
 
+    .demo-player {
+      width: 100%;
+      margin-top: 8px;
+    }
+
     .header-right {
       display: flex;
       flex-direction: column;
@@ -154,6 +163,86 @@
       color: var(--text);
     }
 
+    .feature-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .feature-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: #fcfdff;
+    }
+
+    .feature-box h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+
+    .feature-box p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .step-box {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(180deg, #ffffff 0%, #fafbff 100%);
+    }
+
+    .step-no {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .trust-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .trust-pill {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fcfdff;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .prefill-note {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #eef7ff;
+      border: 1px solid #d8e9ff;
+      color: #24507a;
+      display: none;
+    }
+
     @media (max-width: 980px) {
       .header-right {
         width: 100%;
@@ -168,7 +257,10 @@
 
     @media (max-width: 900px) {
       .usage-grid,
-      .demo-grid {
+      .demo-grid,
+      .feature-grid-3,
+      .steps-grid,
+      .trust-strip {
         grid-template-columns: 1fr;
       }
     }
@@ -207,26 +299,34 @@
     <section class="card hero-card">
       <div class="hero-flex">
         <div class="hero-left">
-          <h1 class="hero-title">Convert Punjabi Text into Natural AI Voice</h1>
+          <h1 class="hero-title">Create Natural Punjabi Voice in Seconds</h1>
 
           <p class="small hero-text">
-            VoicePunjabAI converts Punjabi Gurmukhi text into clear MP3 audio.
-            Translate English into Punjabi and generate voice instantly.
+            Convert Punjabi Gurmukhi text into MP3 audio, translate English into Punjabi,
+            and type with a built-in Punjabi keyboard. VoicePunjabAI is made for creators,
+            learners, educators, and Punjabi content workflows.
           </p>
 
           <div class="btnrow hero-actions">
             <a href="#toolStart" class="btn-link primary">Start Now</a>
-            <a href="about.html" class="btn-link secondary">Learn More</a>
+            <a href="pricing.html" class="btn-link secondary">View Plans</a>
+          </div>
+
+          <div class="trust-strip">
+            <div class="trust-pill">Punjabi MP3 Audio</div>
+            <div class="trust-pill">English → Punjabi</div>
+            <div class="trust-pill">Built-in Keyboard</div>
+            <div class="trust-pill">Fast Cloud Voice</div>
           </div>
         </div>
 
         <div class="hero-right">
           <div class="hero-mini-box">
-            <h3>Features</h3>
-            <p class="small">• Punjabi text to MP3</p>
-            <p class="small">• English to Punjabi translation</p>
-            <p class="small">• Built-in Punjabi keyboard</p>
-            <p class="small">• Download audio</p>
+            <h3>Best for</h3>
+            <p class="small">• Punjabi narration and explainers</p>
+            <p class="small">• YouTube, reels, and voiceovers</p>
+            <p class="small">• Punjabi learning tools</p>
+            <p class="small">• Sikh / Punjabi audio content</p>
           </div>
         </div>
       </div>
@@ -274,18 +374,81 @@
     </section>
 
     <section class="card demo-card">
-      <h2>Quick Voice Guide</h2>
+      <h2>Voice Demos</h2>
+      <p class="small">
+        Listen to sample Punjabi voice styles before generating your own audio.
+      </p>
+
       <div class="demo-grid">
         <div class="demo-box">
-          <h3>Female Voice</h3>
-          <p class="small">Best for soft narration, stories, and general voice generation.</p>
-          <div class="usage-note">Tip: Raise pitch a little for a brighter tone.</div>
+          <h3>Female Voice Demo</h3>
+          <p class="small">Soft and clear for stories, explainers, learning content, and general narration.</p>
+          <audio class="demo-player" controls preload="none">
+            <source src="https://voicepunjab-api-777821135954.us-central1.run.app/demo/female-demo.mp3" type="audio/mpeg" />
+          </audio>
         </div>
 
         <div class="demo-box">
-          <h3>Male Voice</h3>
-          <p class="small">Best for balanced narration, explainers, and steady Punjabi speech.</p>
-          <div class="usage-note">Tip: Lower pitch slightly for a deeper tone.</div>
+          <h3>Male Voice Demo</h3>
+          <p class="small">Balanced and steady for Punjabi narration, voiceovers, and creator-style audio.</p>
+          <audio class="demo-player" controls preload="none">
+            <source src="https://voicepunjab-api-777821135954.us-central1.run.app/demo/male-demo.mp3" type="audio/mpeg" />
+          </audio>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Why Use VoicePunjabAI?</h2>
+      <div class="feature-grid-3">
+        <div class="feature-box">
+          <h3>Punjabi-first workflow</h3>
+          <p>
+            Built specifically for Punjabi text, Punjabi voice generation, and English to Punjabi conversion.
+          </p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Fast MP3 generation</h3>
+          <p>
+            Generate playable MP3 audio quickly and download it for your own content workflow.
+          </p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Easy for creators and learners</h3>
+          <p>
+            Use it for Punjabi YouTube videos, educational content, audio lessons, and narration projects.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How It Works</h2>
+      <div class="steps-grid">
+        <div class="step-box">
+          <div class="step-no">1</div>
+          <h3>Enter or translate text</h3>
+          <p class="small">
+            Type Punjabi directly, use the Punjabi keyboard, or convert English into Punjabi first.
+          </p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-no">2</div>
+          <h3>Choose voice settings</h3>
+          <p class="small">
+            Select male or female voice, adjust speed and pitch, and prepare the exact tone you want.
+          </p>
+        </div>
+
+        <div class="step-box">
+          <div class="step-no">3</div>
+          <h3>Generate and download MP3</h3>
+          <p class="small">
+            Create audio instantly, play it in the browser, and download the MP3 when ready.
+          </p>
         </div>
       </div>
     </section>
@@ -297,6 +460,10 @@
             <h2>Option A: Punjabi Text</h2>
             <p class="small">Paste Punjabi text and generate MP3 audio.</p>
           </div>
+        </div>
+
+        <div id="prefillNote" class="prefill-note">
+          Previous history item loaded here. Review it and generate again if needed.
         </div>
 
         <textarea
@@ -386,6 +553,26 @@
       </div>
 
       <div id="keyboard" class="keyboard"></div>
+    </section>
+
+    <section class="card">
+      <h2>Popular Use Cases</h2>
+      <div class="feature-grid-3">
+        <div class="feature-box">
+          <h3>YouTube and reels</h3>
+          <p>Create Punjabi narration for short videos, explainers, devotional clips, and creator content.</p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Punjabi learning</h3>
+          <p>Turn Punjabi text into audio for pronunciation support, reading practice, and learning tools.</p>
+        </div>
+
+        <div class="feature-box">
+          <h3>Educational and cultural content</h3>
+          <p>Build Sikh, Punjabi, and educational audio content with easy text input and downloadable MP3 output.</p>
+        </div>
+      </div>
     </section>
 
     <footer class="site-footer">
@@ -481,6 +668,7 @@
     const translateUsageBig = document.getElementById("translateUsageBig");
     const translateProgress = document.getElementById("translateProgress");
     const translateUsageNote = document.getElementById("translateUsageNote");
+    const prefillNote = document.getElementById("prefillNote");
 
     let lastAudioUrl = "";
 
@@ -525,6 +713,31 @@
     function capitalizePlan(plan) {
       if (!plan) return "Guest";
       return plan.charAt(0).toUpperCase() + plan.slice(1);
+    }
+
+    function applyHistoryDraft() {
+      try {
+        const raw = sessionStorage.getItem("vp_history_draft");
+        if (!raw) return;
+
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === "object") {
+          textA.value = draft.original_text || "";
+          voiceA.value = draft.voice || "pa-IN-Standard-A";
+          speedA.value = String(draft.speed ?? 1);
+          pitchA.value = String(draft.pitch ?? 0);
+
+          prefillNote.style.display = "block";
+
+          setTimeout(() => {
+            document.getElementById("toolStart")?.scrollIntoView({ behavior: "smooth" });
+          }, 150);
+        }
+
+        sessionStorage.removeItem("vp_history_draft");
+      } catch (err) {
+        sessionStorage.removeItem("vp_history_draft");
+      }
     }
 
     async function checkHealth() {
@@ -790,6 +1003,7 @@
 
     buildKeyboard();
     renderAuthArea();
+    applyHistoryDraft();
     checkHealth();
     loadUsage();
   </script>

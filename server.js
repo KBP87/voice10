@@ -97,6 +97,32 @@ const MAX_PITCH = 5;
 
 const DB_PATH = "/tmp/data.sqlite";
 const CACHE_DIR = path.join(__dirname, "cache");
+const DEMO_DIR = path.join(__dirname, "demo");
+
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  "10minutemail.com",
+  "10minutemail.net",
+  "20minutemail.com",
+  "dispostable.com",
+  "fakeinbox.com",
+  "fakemail.net",
+  "getairmail.com",
+  "guerrillamail.com",
+  "guerrillamailblock.com",
+  "maildrop.cc",
+  "mailinator.com",
+  "mailnesia.com",
+  "mohmal.com",
+  "mintemail.com",
+  "sharklasers.com",
+  "tempmail.com",
+  "temp-mail.org",
+  "tempmail.dev",
+  "tempmailo.com",
+  "throwawaymail.com",
+  "trashmail.com",
+  "yopmail.com"
+]);
 
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
@@ -295,6 +321,17 @@ function normalizeEmail(email) {
   }
 
   return `${local}@${domain}`;
+}
+
+function getEmailDomain(email) {
+  const normalized = normalizeEmail(email);
+  const parts = normalized.split("@");
+  return parts.length === 2 ? parts[1] : "";
+}
+
+function isDisposableEmail(email) {
+  const domain = getEmailDomain(email);
+  return DISPOSABLE_EMAIL_DOMAINS.has(domain);
 }
 
 function normalizeEnglishForCache(text) {
@@ -676,7 +713,7 @@ app.use((req, res, next) => {
     res.setHeader("Vary", "Origin");
   }
 
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Admin-Token"
@@ -748,6 +785,7 @@ app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
 
 app.use("/cache", express.static(CACHE_DIR));
+app.use("/demo", express.static(DEMO_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/health", (req, res) => {
@@ -771,6 +809,12 @@ app.post("/api/signup", async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({
         error: "Password must be at least 6 characters long."
+      });
+    }
+
+    if (isDisposableEmail(email)) {
+      return res.status(400).json({
+        error: "Temporary or disposable email addresses are not allowed."
       });
     }
 
@@ -1104,6 +1148,43 @@ app.get("/api/history", requireAuth, async (req, res) => {
   }
 });
 
+app.delete("/api/history/:id", requireAuth, async (req, res) => {
+  try {
+    const itemId = Number(req.params.id);
+
+    if (!Number.isInteger(itemId) || itemId <= 0) {
+      return res.status(400).json({
+        error: "Invalid history item."
+      });
+    }
+
+    const existing = await dbGet(
+      `SELECT id FROM audio_history WHERE id = ? AND user_id = ?`,
+      [itemId, req.user.id]
+    );
+
+    if (!existing) {
+      return res.status(404).json({
+        error: "History item not found."
+      });
+    }
+
+    await dbRun(
+      `DELETE FROM audio_history WHERE id = ? AND user_id = ?`,
+      [itemId, req.user.id]
+    );
+
+    return res.json({
+      message: "History item deleted."
+    });
+  } catch (err) {
+    console.error("delete history error:", err);
+    return res.status(500).json({
+      error: "Failed to delete history item."
+    });
+  }
+});
+
 /* USAGE */
 
 app.get("/api/usage", async (req, res) => {
@@ -1140,6 +1221,8 @@ app.get("/api/usage", async (req, res) => {
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
   try {
+    const freeLimits = getPlanLimits("free");
+
     const [
       translateToday,
       ttsToday,
@@ -1251,6 +1334,10 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
         tts_cache_records: Number(ttsCacheCount?.total || 0),
         usage_log_rows: Number(usageLogCount?.total || 0),
         request_log_rows: Number(requestLogCount?.total || 0)
+      },
+      limits: {
+        daily_translate_char_limit: freeLimits.translate,
+        daily_tts_char_limit: freeLimits.tts
       },
       top_clients_today: topClientsToday || []
     });
@@ -1489,7 +1576,7 @@ app.post("/api/tts", async (req, res) => {
   }
 });
 
-app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
+app.get(/^(?!\/api\/|\/health|\/cache\/|\/demo\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
@@ -1505,6 +1592,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log("GOOGLE_CREDENTIALS_JSON present =", !!GOOGLE_CREDENTIALS_JSON);
   console.log("DB_PATH =", DB_PATH);
   console.log("CACHE_DIR =", CACHE_DIR);
+  console.log("DEMO_DIR =", DEMO_DIR);
   console.log("JWT_SECRET set =", !!JWT_SECRET);
   console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
   console.log("SMTP configured =", !!mailer);

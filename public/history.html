@@ -41,6 +41,7 @@
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .empty-box {
@@ -49,6 +50,21 @@
       border-radius: 16px;
       padding: 24px;
       background: #fcfdff;
+      color: var(--muted);
+    }
+
+    .danger-btn {
+      border: 1px solid #fecdd3;
+      background: #fff1f2;
+      color: #be123c;
+    }
+
+    .danger-btn:hover {
+      box-shadow: 0 8px 18px rgba(190, 18, 60, 0.10);
+    }
+
+    .inline-note {
+      font-size: 13px;
       color: var(--muted);
     }
   </style>
@@ -84,7 +100,7 @@
     <section class="card" style="margin-top:20px;">
       <h2>Your Audio History</h2>
       <p class="small">
-        View your recent generated audio files, replay them, and download them again.
+        View your recent generated audio files, replay them, download them again, or load them back into the main tool.
       </p>
       <div id="historyNote" class="small">Loading history...</div>
     </section>
@@ -157,6 +173,47 @@
       return d.toLocaleString();
     }
 
+    function useAgain(item) {
+      sessionStorage.setItem("vp_history_draft", JSON.stringify({
+        original_text: item.original_text,
+        voice: item.voice,
+        speed: item.speed,
+        pitch: item.pitch
+      }));
+      window.location.href = "index.html";
+    }
+
+    async function deleteHistoryItem(id) {
+      const token = getToken();
+
+      if (!token) {
+        alert("Please log in first.");
+        return;
+      }
+
+      const ok = window.confirm("Delete this history item?");
+      if (!ok) return;
+
+      try {
+        const res = await fetch(API_BASE + "/api/history/" + encodeURIComponent(id), {
+          method: "DELETE",
+          headers: {
+            Authorization: "Bearer " + token
+          }
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Could not delete history item.");
+        }
+
+        await loadHistory();
+      } catch (err) {
+        alert(err.message || "Could not delete history item.");
+      }
+    }
+
     async function loadHistory() {
       const token = getToken();
 
@@ -220,10 +277,20 @@
 
               <div class="history-actions">
                 <a class="btn-link primary" href="${fullAudioUrl}" download="voicepunjab-history.mp3">Download MP3</a>
+                <button type="button" class="use-again-btn" data-id="${item.id}">Use Again</button>
+                <button type="button" class="danger-btn delete-btn" data-id="${item.id}">Delete</button>
               </div>
             </article>
           `;
         }).join("");
+
+        historyList.querySelectorAll(".use-again-btn").forEach((btn, index) => {
+          btn.addEventListener("click", () => useAgain(items[index]));
+        });
+
+        historyList.querySelectorAll(".delete-btn").forEach((btn) => {
+          btn.addEventListener("click", () => deleteHistoryItem(btn.dataset.id));
+        });
       } catch (err) {
         historyNote.textContent = err.message || "Failed to load history.";
         historyList.innerHTML = `
