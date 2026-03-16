@@ -8,12 +8,12 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
-const sqlite3 = require("sqlite3").verbose();
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
+const { Pool } = require("pg");
 const textToSpeech = require("@google-cloud/text-to-speech");
 const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
@@ -52,7 +52,14 @@ const GOOGLE_APPLICATION_CREDENTIALS =
 const GOOGLE_CREDENTIALS_JSON =
   process.env.GOOGLE_CREDENTIALS_JSON || "";
 
-const ADMIN_TOKEN = String(process.env.ADMIN_TOKEN || "").trim();
+const DB_USER = String(process.env.DB_USER || "").trim();
+const DB_PASS = String(process.env.DB_PASS || "").trim();
+const DB_NAME = String(process.env.DB_NAME || "").trim();
+const INSTANCE_CONNECTION_NAME = String(
+  process.env.INSTANCE_CONNECTION_NAME || ""
+).trim();
+const DB_HOST = String(process.env.DB_HOST || "").trim();
+const DB_PORT = Number(process.env.DB_PORT || 5432);
 
 const clientConfig = {
   projectId: GOOGLE_CLOUD_PROJECT
@@ -95,40 +102,24 @@ const MAX_SPEED = 1.25;
 const MIN_PITCH = -5;
 const MAX_PITCH = 5;
 
-const DB_PATH = "/tmp/data.sqlite";
 const CACHE_DIR = path.join(__dirname, "cache");
-const DEMO_DIR = path.join(__dirname, "demo");
-
-const DISPOSABLE_EMAIL_DOMAINS = new Set([
-  "10minutemail.com",
-  "10minutemail.net",
-  "20minutemail.com",
-  "dispostable.com",
-  "fakeinbox.com",
-  "fakemail.net",
-  "getairmail.com",
-  "guerrillamail.com",
-  "guerrillamailblock.com",
-  "maildrop.cc",
-  "mailinator.com",
-  "mailnesia.com",
-  "mohmal.com",
-  "mintemail.com",
-  "sharklasers.com",
-  "tempmail.com",
-  "temp-mail.org",
-  "tempmail.dev",
-  "tempmailo.com",
-  "throwawaymail.com",
-  "trashmail.com",
-  "yopmail.com"
-]);
 
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
-const db = new sqlite3.Database(DB_PATH);
+const pool = new Pool({
+  user: DB_USER,
+  password: DB_PASS,
+  database: DB_NAME,
+  host: INSTANCE_CONNECTION_NAME
+    ? `/cloudsql/${INSTANCE_CONNECTION_NAME}`
+    : DB_HOST || "127.0.0.1",
+  port: INSTANCE_CONNECTION_NAME ? undefined : DB_PORT,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
 
 let mailer = null;
 
@@ -144,151 +135,134 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
   });
 }
 
-function initDatabase() {
-  db.serialize(() => {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        plan TEXT NOT NULL DEFAULT 'free',
-        is_verified INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+async function initDatabase() {
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      plan TEXT NOT NULL DEFAULT 'free',
+      is_verified INTEGER NOT NULL DEFAULT 0,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS email_verification_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        token TEXT NOT NULL UNIQUE,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS email_verification_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE INDEX IF NOT EXISTS idx_email_verification_user
-      ON email_verification_tokens (user_id, expires_at)
-    `);
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_email_verification_user
+    ON email_verification_tokens (user_id, expires_at)
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        token TEXT NOT NULL UNIQUE,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE INDEX IF NOT EXISTS idx_password_reset_user
-      ON password_reset_tokens (user_id, expires_at)
-    `);
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_password_reset_user
+    ON password_reset_tokens (user_id, expires_at)
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS translation_cache (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        source_text TEXT NOT NULL UNIQUE,
-        translated_text TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS translation_cache (
+      id SERIAL PRIMARY KEY,
+      source_text TEXT NOT NULL UNIQUE,
+      translated_text TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS tts_cache (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cache_key TEXT NOT NULL UNIQUE,
-        text TEXT NOT NULL,
-        voice TEXT NOT NULL,
-        speed REAL NOT NULL,
-        pitch REAL NOT NULL,
-        file_name TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS tts_cache (
+      id SERIAL PRIMARY KEY,
+      cache_key TEXT NOT NULL UNIQUE,
+      text TEXT NOT NULL,
+      voice TEXT NOT NULL,
+      speed REAL NOT NULL,
+      pitch REAL NOT NULL,
+      file_name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS usage_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        client_id TEXT NOT NULL,
-        endpoint TEXT NOT NULL,
-        char_count INTEGER NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS usage_logs (
+      id SERIAL PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      char_count INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE INDEX IF NOT EXISTS idx_usage_logs_client_endpoint_date
-      ON usage_logs (client_id, endpoint, created_at)
-    `);
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_usage_logs_client_endpoint_date
+    ON usage_logs (client_id, endpoint, created_at)
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS request_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        endpoint TEXT NOT NULL,
-        cache_status TEXT NOT NULL,
-        char_count INTEGER NOT NULL,
-        client_id TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS request_logs (
+      id SERIAL PRIMARY KEY,
+      endpoint TEXT NOT NULL,
+      cache_status TEXT NOT NULL,
+      char_count INTEGER NOT NULL,
+      client_id TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE INDEX IF NOT EXISTS idx_request_logs_endpoint_date
-      ON request_logs (endpoint, created_at)
-    `);
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_request_logs_endpoint_date
+    ON request_logs (endpoint, created_at)
+  `);
 
-    db.run(`
-      CREATE TABLE IF NOT EXISTS audio_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
-        original_text TEXT NOT NULL,
-        voice TEXT NOT NULL,
-        speed REAL NOT NULL,
-        pitch REAL NOT NULL,
-        audio_url TEXT NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-      )
-    `);
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS audio_history (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      original_text TEXT NOT NULL,
+      voice TEXT NOT NULL,
+      speed REAL NOT NULL,
+      pitch REAL NOT NULL,
+      audio_url TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    db.run(`
-      CREATE INDEX IF NOT EXISTS idx_audio_history_user_date
-      ON audio_history (user_id, created_at DESC)
-    `);
-  });
+  await dbRun(`
+    CREATE INDEX IF NOT EXISTS idx_audio_history_user_date
+    ON audio_history (user_id, created_at DESC)
+  `);
 }
 
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+async function dbGet(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows[0] || null;
 }
 
-function dbAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+async function dbAll(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows;
 }
 
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) reject(err);
-      else resolve(this);
-    });
-  });
+async function dbRun(sql, params = []) {
+  return pool.query(sql, params);
 }
 
 function containsGurmukhi(text) {
@@ -321,17 +295,6 @@ function normalizeEmail(email) {
   }
 
   return `${local}@${domain}`;
-}
-
-function getEmailDomain(email) {
-  const normalized = normalizeEmail(email);
-  const parts = normalized.split("@");
-  return parts.length === 2 ? parts[1] : "";
-}
-
-function isDisposableEmail(email) {
-  const domain = getEmailDomain(email);
-  return DISPOSABLE_EMAIL_DOMAINS.has(domain);
 }
 
 function normalizeEnglishForCache(text) {
@@ -382,7 +345,8 @@ function createAuthToken(user) {
       id: user.id,
       email: user.email,
       plan: user.plan,
-      is_verified: !!user.is_verified
+      is_verified: !!user.is_verified,
+      is_admin: !!user.is_admin
     },
     JWT_SECRET,
     { expiresIn: "30d" }
@@ -395,7 +359,8 @@ function sanitizeUser(user) {
     name: user.name,
     email: user.email,
     plan: user.plan,
-    is_verified: !!user.is_verified
+    is_verified: !!user.is_verified,
+    is_admin: !!user.is_admin
   };
 }
 
@@ -407,14 +372,14 @@ async function createVerificationToken(userId) {
   const token = makeVerificationToken();
 
   await dbRun(
-    `DELETE FROM email_verification_tokens WHERE user_id = ?`,
+    `DELETE FROM email_verification_tokens WHERE user_id = $1`,
     [userId]
   );
 
   await dbRun(
     `
       INSERT INTO email_verification_tokens (user_id, token, expires_at)
-      VALUES (?, ?, datetime('now', '+24 hours'))
+      VALUES ($1, $2, NOW() + INTERVAL '24 hours')
     `,
     [userId, token]
   );
@@ -467,14 +432,14 @@ async function createPasswordResetToken(userId) {
   const token = makeVerificationToken();
 
   await dbRun(
-    `DELETE FROM password_reset_tokens WHERE user_id = ?`,
+    `DELETE FROM password_reset_tokens WHERE user_id = $1`,
     [userId]
   );
 
   await dbRun(
     `
       INSERT INTO password_reset_tokens (user_id, token, expires_at)
-      VALUES (?, ?, datetime('now', '+1 hour'))
+      VALUES ($1, $2, NOW() + INTERVAL '1 hour')
     `,
     [userId, token]
   );
@@ -546,7 +511,7 @@ async function loadUserFromToken(req, res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
 
     const user = await dbGet(
-      `SELECT id, name, email, plan, is_verified FROM users WHERE id = ?`,
+      `SELECT id, name, email, plan, is_verified, is_admin FROM users WHERE id = $1`,
       [decoded.id]
     );
 
@@ -569,13 +534,15 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  const token =
-    String(req.headers["x-admin-token"] || "").trim() ||
-    String(req.query.token || "").trim();
-
-  if (!ADMIN_TOKEN || token !== ADMIN_TOKEN) {
+  if (!req.user) {
     return res.status(401).json({
-      error: "Unauthorized"
+      error: "Login required."
+    });
+  }
+
+  if (!req.user.is_admin) {
+    return res.status(403).json({
+      error: "Admin access required."
     });
   }
 
@@ -610,9 +577,9 @@ async function getTodayUsage(clientId, endpoint) {
     `
       SELECT COALESCE(SUM(char_count), 0) AS total
       FROM usage_logs
-      WHERE client_id = ?
-        AND endpoint = ?
-        AND date(created_at) = date('now', 'localtime')
+      WHERE client_id = $1
+        AND endpoint = $2
+        AND created_at::date = CURRENT_DATE
     `,
     [clientId, endpoint]
   );
@@ -624,7 +591,7 @@ async function logUsage(clientId, endpoint, charCount) {
   await dbRun(
     `
       INSERT INTO usage_logs (client_id, endpoint, char_count)
-      VALUES (?, ?, ?)
+      VALUES ($1, $2, $3)
     `,
     [clientId, endpoint, charCount]
   );
@@ -634,7 +601,7 @@ async function logRequest(endpoint, cacheStatus, charCount, clientId) {
   await dbRun(
     `
       INSERT INTO request_logs (endpoint, cache_status, char_count, client_id)
-      VALUES (?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4)
     `,
     [endpoint, cacheStatus, charCount, clientId]
   );
@@ -644,7 +611,7 @@ async function saveAudioHistory(userId, originalText, voice, speed, pitch, audio
   await dbRun(
     `
       INSERT INTO audio_history (user_id, original_text, voice, speed, pitch, audio_url)
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6)
     `,
     [userId, originalText, voice, speed, pitch, audioUrl]
   );
@@ -658,7 +625,7 @@ async function translateEnglishToPunjabi(text) {
   const cacheText = normalizeEnglishForCache(text);
 
   const existing = await dbGet(
-    `SELECT translated_text FROM translation_cache WHERE source_text = ?`,
+    `SELECT translated_text FROM translation_cache WHERE source_text = $1`,
     [cacheText]
   );
 
@@ -681,8 +648,11 @@ async function translateEnglishToPunjabi(text) {
   const translatedText = response.translations?.[0]?.translatedText || text;
 
   await dbRun(
-    `INSERT OR IGNORE INTO translation_cache (source_text, translated_text)
-     VALUES (?, ?)`,
+    `
+      INSERT INTO translation_cache (source_text, translated_text)
+      VALUES ($1, $2)
+      ON CONFLICT (source_text) DO NOTHING
+    `,
     [cacheText, translatedText]
   );
 
@@ -691,8 +661,6 @@ async function translateEnglishToPunjabi(text) {
     cached: false
   };
 }
-
-initDatabase();
 
 app.use(
   helmet({
@@ -716,7 +684,7 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Admin-Token"
+    "Content-Type, Authorization"
   );
 
   if (req.method === "OPTIONS") {
@@ -778,18 +746,33 @@ const convertLimiter = rateLimit({
   }
 });
 
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many admin requests. Please try again later."
+  }
+});
+
 app.use("/api/signup", signupLimiter);
 app.use("/api/resend-verification", resendLimiter);
 app.use("/api/forgot-password", forgotPasswordLimiter);
 app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
+app.use("/api/admin", adminLimiter);
 
 app.use("/cache", express.static(CACHE_DIR));
-app.use("/demo", express.static(DEMO_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/health", (req, res) => {
-  res.send("ok");
+app.get("/health", async (req, res) => {
+  try {
+    await dbGet("SELECT 1 AS ok");
+    res.send("ok");
+  } catch (err) {
+    res.status(500).send("db not ready");
+  }
 });
 
 /* AUTH ROUTES */
@@ -812,14 +795,8 @@ app.post("/api/signup", async (req, res) => {
       });
     }
 
-    if (isDisposableEmail(email)) {
-      return res.status(400).json({
-        error: "Temporary or disposable email addresses are not allowed."
-      });
-    }
-
     const existing = await dbGet(
-      `SELECT id FROM users WHERE email = ?`,
+      `SELECT id FROM users WHERE email = $1`,
       [email]
     );
 
@@ -831,15 +808,16 @@ app.post("/api/signup", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = await dbRun(
-      `INSERT INTO users (name, email, password_hash, plan, is_verified)
-       VALUES (?, ?, ?, 'free', 0)`,
+    const insertResult = await dbRun(
+      `INSERT INTO users (name, email, password_hash, plan, is_verified, is_admin)
+       VALUES ($1, $2, $3, 'free', 0, 0)
+       RETURNING id`,
       [name, email, passwordHash]
     );
 
     const user = await dbGet(
-      `SELECT id, name, email, plan, is_verified FROM users WHERE id = ?`,
-      [result.lastID]
+      `SELECT id, name, email, plan, is_verified, is_admin FROM users WHERE id = $1`,
+      [insertResult.rows[0].id]
     );
 
     const token = await createVerificationToken(user.id);
@@ -868,7 +846,7 @@ app.post("/api/resend-verification", async (req, res) => {
     }
 
     const user = await dbGet(
-      `SELECT id, name, email, plan, is_verified FROM users WHERE email = ?`,
+      `SELECT id, name, email, plan, is_verified, is_admin FROM users WHERE email = $1`,
       [email]
     );
 
@@ -911,7 +889,7 @@ app.get("/api/verify-email", async (req, res) => {
         SELECT evt.id, evt.user_id, evt.expires_at, u.email
         FROM email_verification_tokens evt
         INNER JOIN users u ON u.id = evt.user_id
-        WHERE evt.token = ?
+        WHERE evt.token = $1
       `,
       [token]
     );
@@ -920,23 +898,20 @@ app.get("/api/verify-email", async (req, res) => {
       return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
     }
 
-    const isExpired = await dbGet(
-      `SELECT CASE WHEN datetime(?) < datetime('now') THEN 1 ELSE 0 END AS expired`,
-      [row.expires_at]
-    );
+    const expired = new Date(row.expires_at).getTime() < Date.now();
 
-    if (Number(isExpired?.expired || 0) === 1) {
-      await dbRun(`DELETE FROM email_verification_tokens WHERE id = ?`, [row.id]);
+    if (expired) {
+      await dbRun(`DELETE FROM email_verification_tokens WHERE id = $1`, [row.id]);
       return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
     }
 
     await dbRun(
-      `UPDATE users SET is_verified = 1 WHERE id = ?`,
+      `UPDATE users SET is_verified = 1 WHERE id = $1`,
       [row.user_id]
     );
 
     await dbRun(
-      `DELETE FROM email_verification_tokens WHERE user_id = ?`,
+      `DELETE FROM email_verification_tokens WHERE user_id = $1`,
       [row.user_id]
     );
 
@@ -959,7 +934,7 @@ app.post("/api/login", async (req, res) => {
     }
 
     const userRow = await dbGet(
-      `SELECT * FROM users WHERE email = ?`,
+      `SELECT * FROM users WHERE email = $1`,
       [email]
     );
 
@@ -988,7 +963,8 @@ app.post("/api/login", async (req, res) => {
       name: userRow.name,
       email: userRow.email,
       plan: userRow.plan,
-      is_verified: userRow.is_verified
+      is_verified: userRow.is_verified,
+      is_admin: userRow.is_admin
     };
 
     const token = createAuthToken(user);
@@ -1017,7 +993,7 @@ app.post("/api/forgot-password", async (req, res) => {
     }
 
     const user = await dbGet(
-      `SELECT id, name, email FROM users WHERE email = ?`,
+      `SELECT id, name, email FROM users WHERE email = $1`,
       [email]
     );
 
@@ -1062,7 +1038,7 @@ app.post("/api/reset-password", async (req, res) => {
       `
         SELECT prt.id, prt.user_id, prt.expires_at
         FROM password_reset_tokens prt
-        WHERE prt.token = ?
+        WHERE prt.token = $1
       `,
       [token]
     );
@@ -1073,13 +1049,10 @@ app.post("/api/reset-password", async (req, res) => {
       });
     }
 
-    const isExpired = await dbGet(
-      `SELECT CASE WHEN datetime(?) < datetime('now') THEN 1 ELSE 0 END AS expired`,
-      [row.expires_at]
-    );
+    const expired = new Date(row.expires_at).getTime() < Date.now();
 
-    if (Number(isExpired?.expired || 0) === 1) {
-      await dbRun(`DELETE FROM password_reset_tokens WHERE id = ?`, [row.id]);
+    if (expired) {
+      await dbRun(`DELETE FROM password_reset_tokens WHERE id = $1`, [row.id]);
       return res.status(400).json({
         error: "Invalid or expired reset link."
       });
@@ -1088,12 +1061,12 @@ app.post("/api/reset-password", async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     await dbRun(
-      `UPDATE users SET password_hash = ? WHERE id = ?`,
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
       [passwordHash, row.user_id]
     );
 
     await dbRun(
-      `DELETE FROM password_reset_tokens WHERE user_id = ?`,
+      `DELETE FROM password_reset_tokens WHERE user_id = $1`,
       [row.user_id]
     );
 
@@ -1130,7 +1103,7 @@ app.get("/api/history", requireAuth, async (req, res) => {
       `
         SELECT id, original_text, voice, speed, pitch, audio_url, created_at
         FROM audio_history
-        WHERE user_id = ?
+        WHERE user_id = $1
         ORDER BY created_at DESC
         LIMIT 50
       `,
@@ -1144,43 +1117,6 @@ app.get("/api/history", requireAuth, async (req, res) => {
     console.error("history error:", err);
     return res.status(500).json({
       error: "Failed to load audio history."
-    });
-  }
-});
-
-app.delete("/api/history/:id", requireAuth, async (req, res) => {
-  try {
-    const itemId = Number(req.params.id);
-
-    if (!Number.isInteger(itemId) || itemId <= 0) {
-      return res.status(400).json({
-        error: "Invalid history item."
-      });
-    }
-
-    const existing = await dbGet(
-      `SELECT id FROM audio_history WHERE id = ? AND user_id = ?`,
-      [itemId, req.user.id]
-    );
-
-    if (!existing) {
-      return res.status(404).json({
-        error: "History item not found."
-      });
-    }
-
-    await dbRun(
-      `DELETE FROM audio_history WHERE id = ? AND user_id = ?`,
-      [itemId, req.user.id]
-    );
-
-    return res.json({
-      message: "History item deleted."
-    });
-  } catch (err) {
-    console.error("delete history error:", err);
-    return res.status(500).json({
-      error: "Failed to delete history item."
     });
   }
 });
@@ -1242,53 +1178,53 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'convert'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'tts'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COALESCE(SUM(char_count), 0) AS total
         FROM usage_logs
         WHERE endpoint = 'convert'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COALESCE(SUM(char_count), 0) AS total
         FROM usage_logs
         WHERE endpoint = 'tts'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'convert'
           AND cache_status = 'hit'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'convert'
           AND cache_status = 'miss'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'tts'
           AND cache_status = 'hit'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`
         SELECT COUNT(*) AS total
         FROM request_logs
         WHERE endpoint = 'tts'
           AND cache_status = 'miss'
-          AND date(created_at) = date('now', 'localtime')
+          AND created_at::date = CURRENT_DATE
       `),
       dbGet(`SELECT COUNT(*) AS total FROM translation_cache`),
       dbGet(`SELECT COUNT(*) AS total FROM tts_cache`),
@@ -1297,7 +1233,7 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
       dbAll(`
         SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
         FROM request_logs
-        WHERE date(created_at) = date('now', 'localtime')
+        WHERE created_at::date = CURRENT_DATE
         GROUP BY client_id
         ORDER BY requests DESC, chars DESC
         LIMIT 5
@@ -1502,7 +1438,7 @@ app.post("/api/tts", async (req, res) => {
     });
 
     const existing = await dbGet(
-      `SELECT file_name FROM tts_cache WHERE cache_key = ?`,
+      `SELECT file_name FROM tts_cache WHERE cache_key = $1`,
       [cacheKey]
     );
 
@@ -1540,8 +1476,11 @@ app.post("/api/tts", async (req, res) => {
       fs.writeFileSync(filePath, response.audioContent, "binary");
 
       await dbRun(
-        `INSERT OR IGNORE INTO tts_cache (cache_key, text, voice, speed, pitch, file_name)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `
+          INSERT INTO tts_cache (cache_key, text, voice, speed, pitch, file_name)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (cache_key) DO NOTHING
+        `,
         [cacheKey, normalizedPunjabi, voice, speed, pitch, fileName]
       );
 
@@ -1576,24 +1515,28 @@ app.post("/api/tts", async (req, res) => {
   }
 });
 
-app.get(/^(?!\/api\/|\/health|\/cache\/|\/demo\/).*/, (req, res) => {
+app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`VoicePunjab API running on port ${PORT}`);
-  console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
-  console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
-  console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
-  console.log(
-    "GOOGLE_APPLICATION_CREDENTIALS =",
-    GOOGLE_APPLICATION_CREDENTIALS || "(not set)"
-  );
-  console.log("GOOGLE_CREDENTIALS_JSON present =", !!GOOGLE_CREDENTIALS_JSON);
-  console.log("DB_PATH =", DB_PATH);
-  console.log("CACHE_DIR =", CACHE_DIR);
-  console.log("DEMO_DIR =", DEMO_DIR);
-  console.log("JWT_SECRET set =", !!JWT_SECRET);
-  console.log("ADMIN_TOKEN set =", !!ADMIN_TOKEN);
-  console.log("SMTP configured =", !!mailer);
-});
+(async () => {
+  try {
+    await initDatabase();
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`VoicePunjab API running on port ${PORT}`);
+      console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
+      console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
+      console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
+      console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
+      console.log("DB_NAME =", DB_NAME || "(missing)");
+      console.log("DB_USER =", DB_USER || "(missing)");
+      console.log("JWT_SECRET set =", !!JWT_SECRET);
+      console.log("SMTP configured =", !!mailer);
+      console.log("CACHE_DIR =", CACHE_DIR);
+    });
+  } catch (err) {
+    console.error("Database init failed:", err);
+    process.exit(1);
+  }
+})();

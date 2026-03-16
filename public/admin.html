@@ -29,14 +29,6 @@
       margin-bottom: 25px;
     }
 
-    input[type="password"] {
-      padding: 10px 12px;
-      border: 1px solid #d9deea;
-      border-radius: 8px;
-      min-width: 260px;
-      font-size: 14px;
-    }
-
     button {
       padding: 10px 18px;
       border: none;
@@ -121,13 +113,11 @@
 <body>
 
   <h1>VoicePunjab Admin Dashboard</h1>
-  <div class="note">Enter your admin token to load live Cloud Run stats.</div>
+  <div class="note">This page now uses logged-in admin access instead of a shared admin token.</div>
 
   <div class="topbar">
-    <input id="tokenInput" type="password" placeholder="Enter admin token" />
-    <button id="loadBtn" type="button">Load Stats</button>
-    <button id="clearBtn" type="button">Clear Token</button>
-    <div id="status" class="status">Waiting for token...</div>
+    <button id="loadBtn" type="button">Refresh Stats</button>
+    <div id="status" class="status">Checking admin access...</div>
   </div>
 
   <div class="grid">
@@ -213,11 +203,21 @@
   <script>
     const CLOUD_RUN = "https://voicepunjab-api-777821135954.us-central1.run.app";
 
-    const tokenInput = document.getElementById("tokenInput");
-    const loadBtn = document.getElementById("loadBtn");
-    const clearBtn = document.getElementById("clearBtn");
     const statusEl = document.getElementById("status");
     const topClientsBody = document.getElementById("topClientsBody");
+    const loadBtn = document.getElementById("loadBtn");
+
+    function getToken() {
+      return localStorage.getItem("vp_token") || "";
+    }
+
+    function getSavedUser() {
+      try {
+        return JSON.parse(localStorage.getItem("vp_user") || "null");
+      } catch {
+        return null;
+      }
+    }
 
     function setStatus(ok, message) {
       statusEl.classList.remove("ok", "bad");
@@ -255,10 +255,16 @@
     }
 
     async function loadStats() {
-      const token = tokenInput.value.trim();
+      const token = getToken();
+      const user = getSavedUser();
 
-      if (!token) {
-        setStatus(false, "Please enter admin token.");
+      if (!token || !user) {
+        setStatus(false, "Please log in first.");
+        return;
+      }
+
+      if (!user.is_admin) {
+        setStatus(false, "This account is not an admin.");
         return;
       }
 
@@ -268,7 +274,7 @@
         const res = await fetch(`${CLOUD_RUN}/api/admin/stats`, {
           method: "GET",
           headers: {
-            "X-Admin-Token": token
+            Authorization: "Bearer " + token
           },
           cache: "no-store"
         });
@@ -279,7 +285,6 @@
           throw new Error(data.error || "Failed to load admin stats");
         }
 
-        sessionStorage.setItem("vp_admin_token", token);
         fillStats(data);
         setStatus(true, "Admin stats loaded successfully.");
       } catch (err) {
@@ -289,18 +294,7 @@
     }
 
     loadBtn.addEventListener("click", loadStats);
-
-    clearBtn.addEventListener("click", () => {
-      sessionStorage.removeItem("vp_admin_token");
-      tokenInput.value = "";
-      setStatus(true, "Saved token cleared.");
-    });
-
-    const savedToken = sessionStorage.getItem("vp_admin_token");
-    if (savedToken) {
-      tokenInput.value = savedToken;
-      loadStats();
-    }
+    loadStats();
   </script>
 </body>
 </html>
