@@ -108,28 +108,27 @@ if (!fs.existsSync(CACHE_DIR)) {
 }
 
 function getPoolConfig() {
+  const baseConfig = {
+    user: DB_USER,
+    password: DB_PASS,
+    database: DB_NAME,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+  };
+
   if (INSTANCE_CONNECTION_NAME) {
     return {
-      user: DB_USER,
-      password: DB_PASS,
-      database: DB_NAME,
+      ...baseConfig,
       host: `/cloudsql/${INSTANCE_CONNECTION_NAME}`,
-      port: 5432,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      port: 5432
     };
   }
 
   return {
-    user: DB_USER,
-    password: DB_PASS,
-    database: DB_NAME,
+    ...baseConfig,
     host: DB_HOST || "127.0.0.1",
-    port: DB_PORT,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    port: DB_PORT
   };
 }
 
@@ -589,12 +588,42 @@ app.use(loadUserFromToken);
 app.use("/cache", express.static(CACHE_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
-const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
-const resendLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
-const forgotPasswordLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
-const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
-const convertLimiter = rateLimit({ windowMs: 60 * 1000, max: 20 });
-const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const resendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const ttsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const convertLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 app.use("/api/signup", signupLimiter);
 app.use("/api/resend-verification", resendLimiter);
