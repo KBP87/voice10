@@ -33,8 +33,8 @@ const API_PUBLIC_BASE_URL = String(
 ).trim();
 
 const SMTP_HOST = String(process.env.SMTP_HOST || "").trim();
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
-const SMTP_SECURE = String(process.env.SMTP_SECURE || "false").trim() === "true";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || "true").trim() === "true";
 const SMTP_USER = String(process.env.SMTP_USER || "").trim();
 const SMTP_PASS = String(process.env.SMTP_PASS || "").trim();
 const SMTP_FROM = String(
@@ -61,8 +61,6 @@ const INSTANCE_CONNECTION_NAME = String(
 ).trim();
 const DB_HOST = String(process.env.DB_HOST || "").trim();
 const DB_PORT = Number(process.env.DB_PORT || 5432);
-
-let dbReady = false;
 
 const clientConfig = {
   projectId: GOOGLE_CLOUD_PROJECT
@@ -365,9 +363,10 @@ async function sendVerificationEmail(user, token) {
     return;
   }
 
-  await mailer.sendMail({
+  const info = await mailer.sendMail({
     from: SMTP_FROM,
     to: user.email,
+    replyTo: "support@voicepunjabai.com",
     subject: "Verify your VoicePunjabAI email",
     text: `Hello ${user.name},
 
@@ -377,8 +376,22 @@ ${verifyUrl}
 This link expires in 24 hours.
 
 VoicePunjabAI`,
-    html: `<p>Hello ${user.name},</p><p>Please verify your email:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;">
+      <p>Hello ${user.name},</p>
+      <p>Please verify your email by clicking the button below:</p>
+      <p>
+        <a href="${verifyUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;">
+          Verify Email
+        </a>
+      </p>
+      <p>If the button does not work, open this link:</p>
+      <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+      <p>This link expires in 24 hours.</p>
+      <p>VoicePunjabAI</p>
+    </div>`
   });
+
+  console.log("Verification email sent:", info.messageId);
 }
 
 async function createPasswordResetToken(userId) {
@@ -404,16 +417,35 @@ async function sendPasswordResetEmail(user, token) {
     return;
   }
 
-  await mailer.sendMail({
+  const info = await mailer.sendMail({
     from: SMTP_FROM,
     to: user.email,
+    replyTo: "support@voicepunjabai.com",
     subject: "Reset your VoicePunjabAI password",
     text: `Hello ${user.name},
 
 Open this link to reset your password:
-${resetUrl}`,
-    html: `<p>Hello ${user.name},</p><p>Reset password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`
+${resetUrl}
+
+If you did not request this, you can ignore this email.
+
+VoicePunjabAI`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#222;">
+      <p>Hello ${user.name},</p>
+      <p>Click below to reset your password:</p>
+      <p>
+        <a href="${resetUrl}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;">
+          Reset Password
+        </a>
+      </p>
+      <p>If the button does not work, open this link:</p>
+      <p><a href="${resetUrl}">${resetUrl}</a></p>
+      <p>If you did not request this, you can ignore this email.</p>
+      <p>VoicePunjabAI</p>
+    </div>`
   });
+
+  console.log("Password reset email sent:", info.messageId);
 }
 
 async function loadUserFromToken(req, res, next) {
@@ -590,46 +622,45 @@ app.use(loadUserFromToken);
 app.use("/cache", express.static(CACHE_DIR));
 app.use(express.static(path.join(__dirname, "public")));
 
+const rateLimitOptions = {
+  standardHeaders: true,
+  legacyHeaders: false
+};
+
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 const resendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 const convertLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  standardHeaders: true,
-  legacyHeaders: false
+  ...rateLimitOptions
 });
 
 app.use("/api/signup", signupLimiter);
@@ -640,10 +671,6 @@ app.use("/api/convert", convertLimiter);
 app.use("/api/admin", adminLimiter);
 
 app.get("/health", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).send("server up, db not ready");
-  }
-
   try {
     await dbGet("SELECT 1 AS ok");
     res.send("ok");
@@ -654,10 +681,6 @@ app.get("/health", async (req, res) => {
 });
 
 app.post("/api/signup", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const name = normalizeText(req.body?.name);
     const email = normalizeEmail(req.body?.email);
@@ -704,10 +727,6 @@ app.post("/api/signup", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || "");
@@ -755,10 +774,6 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/resend-verification", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const email = normalizeEmail(req.body?.email);
 
@@ -790,10 +805,6 @@ app.post("/api/resend-verification", async (req, res) => {
 });
 
 app.get("/api/verify-email", async (req, res) => {
-  if (!dbReady) {
-    return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
-  }
-
   try {
     const token = normalizeText(req.query?.token);
 
@@ -830,10 +841,6 @@ app.get("/api/verify-email", async (req, res) => {
 });
 
 app.post("/api/forgot-password", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const email = normalizeEmail(req.body?.email);
 
@@ -862,10 +869,6 @@ app.post("/api/forgot-password", async (req, res) => {
 });
 
 app.post("/api/reset-password", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const token = normalizeText(req.body?.token);
     const password = String(req.body?.password || "");
@@ -923,10 +926,6 @@ app.get("/api/me", (req, res) => {
 });
 
 app.get("/api/history", requireAuth, async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const rows = await dbAll(
       `SELECT id, original_text, voice, speed, pitch, audio_url, created_at
@@ -945,10 +944,6 @@ app.get("/api/history", requireAuth, async (req, res) => {
 });
 
 app.delete("/api/history/:id", requireAuth, async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const historyId = Number(req.params.id);
 
@@ -978,10 +973,6 @@ app.delete("/api/history/:id", requireAuth, async (req, res) => {
 });
 
 app.get("/api/usage", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const trackingId = getTrackingId(req);
     const plan = req.user?.plan || "guest";
@@ -1010,10 +1001,6 @@ app.get("/api/usage", async (req, res) => {
 });
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({ error: "Service starting. Please try again." });
-  }
-
   try {
     const freeLimits = getPlanLimits("free");
 
@@ -1089,13 +1076,6 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
 });
 
 app.post("/api/convert", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({
-      gurmukhi: "",
-      note: "Service starting. Please try again."
-    });
-  }
-
   const rawText = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();
 
@@ -1154,12 +1134,6 @@ app.post("/api/convert", async (req, res) => {
 });
 
 app.post("/api/tts", async (req, res) => {
-  if (!dbReady) {
-    return res.status(503).json({
-      error: "Service starting. Please try again."
-    });
-  }
-
   try {
     const rawText = normalizeText(req.body?.text);
     const voice = normalizeText(req.body?.voice || "pa-IN-Standard-A");
@@ -1245,7 +1219,6 @@ app.post("/api/tts", async (req, res) => {
       );
 
       audioUrl = `/cache/${fileName}`;
-      wasCached = false;
     }
 
     await logUsage(trackingId, "tts", rawText.length);
@@ -1269,22 +1242,27 @@ app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`VoicePunjab API running on port ${PORT}`);
-  console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
-  console.log("DB_HOST =", DB_HOST || "(not set)");
-  console.log("DB_NAME =", DB_NAME || "(missing)");
-  console.log("DB_USER =", DB_USER || "(missing)");
+async function startServer() {
+  try {
+    await dbGet("SELECT 1 AS ok");
+    console.log("Database connected successfully.");
 
-  (async () => {
-    try {
-      await pool.query("SELECT 1");
-      console.log("Database connection successful.");
-      await initDatabase();
-      dbReady = true;
-      console.log("Database initialized successfully.");
-    } catch (err) {
-      console.error("Database background init failed:", err);
-    }
-  })();
-});
+    await initDatabase();
+    console.log("Database initialized.");
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`VoicePunjab API running on port ${PORT}`);
+      console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
+      console.log("DB_HOST =", DB_HOST || "(not set)");
+      console.log("DB_NAME =", DB_NAME || "(missing)");
+      console.log("DB_USER =", DB_USER || "(missing)");
+      console.log("SMTP_HOST =", SMTP_HOST || "(missing)");
+      console.log("SMTP_USER =", SMTP_USER || "(missing)");
+    });
+  } catch (err) {
+    console.error("Server startup failed:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
