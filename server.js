@@ -18,6 +18,7 @@ const textToSpeech = require("@google-cloud/text-to-speech");
 const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
 const app = express();
+app.set("trust proxy", 1);
 
 const PORT = Number(process.env.PORT || 8080);
 const JWT_SECRET = String(process.env.JWT_SECRET || "change-me-now").trim();
@@ -68,11 +69,9 @@ const clientConfig = {
 if (GOOGLE_CREDENTIALS_JSON) {
   try {
     const creds = JSON.parse(GOOGLE_CREDENTIALS_JSON);
-
     if (creds.private_key) {
       creds.private_key = creds.private_key.replace(/\\n/g, "\n");
     }
-
     clientConfig.credentials = creds;
   } catch (err) {
     console.error("Failed to parse GOOGLE_CREDENTIALS_JSON:", err.message);
@@ -108,18 +107,33 @@ if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
-const pool = new Pool({
-  user: DB_USER,
-  password: DB_PASS,
-  database: DB_NAME,
-  host: INSTANCE_CONNECTION_NAME
-    ? `/cloudsql/${INSTANCE_CONNECTION_NAME}`
-    : DB_HOST || "127.0.0.1",
-  port: INSTANCE_CONNECTION_NAME ? undefined : DB_PORT,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
-});
+function getPoolConfig() {
+  if (INSTANCE_CONNECTION_NAME) {
+    return {
+      user: DB_USER,
+      password: DB_PASS,
+      database: DB_NAME,
+      host: `/cloudsql/${INSTANCE_CONNECTION_NAME}`,
+      port: 5432,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000
+    };
+  }
+
+  return {
+    user: DB_USER,
+    password: DB_PASS,
+    database: DB_NAME,
+    host: DB_HOST || "127.0.0.1",
+    port: DB_PORT,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+  };
+}
+
+const pool = new Pool(getPoolConfig());
 
 let mailer = null;
 
@@ -143,8 +157,8 @@ async function initDatabase() {
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       plan TEXT NOT NULL DEFAULT 'free',
-      is_verified INTEGER NOT NULL DEFAULT 0,
-      is_admin INTEGER NOT NULL DEFAULT 0,
+      is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+      is_admin BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -160,11 +174,6 @@ async function initDatabase() {
   `);
 
   await dbRun(`
-    CREATE INDEX IF NOT EXISTS idx_email_verification_user
-    ON email_verification_tokens (user_id, expires_at)
-  `);
-
-  await dbRun(`
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -172,11 +181,6 @@ async function initDatabase() {
       expires_at TIMESTAMP NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  `);
-
-  await dbRun(`
-    CREATE INDEX IF NOT EXISTS idx_password_reset_user
-    ON password_reset_tokens (user_id, expires_at)
   `);
 
   await dbRun(`
@@ -212,11 +216,6 @@ async function initDatabase() {
   `);
 
   await dbRun(`
-    CREATE INDEX IF NOT EXISTS idx_usage_logs_client_endpoint_date
-    ON usage_logs (client_id, endpoint, created_at)
-  `);
-
-  await dbRun(`
     CREATE TABLE IF NOT EXISTS request_logs (
       id SERIAL PRIMARY KEY,
       endpoint TEXT NOT NULL,
@@ -225,11 +224,6 @@ async function initDatabase() {
       client_id TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  `);
-
-  await dbRun(`
-    CREATE INDEX IF NOT EXISTS idx_request_logs_endpoint_date
-    ON request_logs (endpoint, created_at)
   `);
 
   await dbRun(`
@@ -243,11 +237,6 @@ async function initDatabase() {
       audio_url TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
-  `);
-
-  await dbRun(`
-    CREATE INDEX IF NOT EXISTS idx_audio_history_user_date
-    ON audio_history (user_id, created_at DESC)
   `);
 }
 
@@ -278,23 +267,7 @@ function normalizeWhitespace(text) {
 }
 
 function normalizeEmail(email) {
-  const raw = String(email || "").trim().toLowerCase();
-  const parts = raw.split("@");
-
-  if (parts.length !== 2) return raw;
-
-  let [local, domain] = parts;
-
-  if (domain === "googlemail.com") {
-    domain = "gmail.com";
-  }
-
-  if (domain === "gmail.com") {
-    local = local.split("+")[0];
-    local = local.replace(/\./g, "");
-  }
-
-  return `${local}@${domain}`;
+  return String(email || "").trim().toLowerCase();
 }
 
 function normalizeEnglishForCache(text) {
@@ -371,16 +344,11 @@ function makeVerificationToken() {
 async function createVerificationToken(userId) {
   const token = makeVerificationToken();
 
-  await dbRun(
-    `DELETE FROM email_verification_tokens WHERE user_id = $1`,
-    [userId]
-  );
+  await dbRun(`DELETE FROM email_verification_tokens WHERE user_id = $1`, [userId]);
 
   await dbRun(
-    `
-      INSERT INTO email_verification_tokens (user_id, token, expires_at)
-      VALUES ($1, $2, NOW() + INTERVAL '24 hours')
-    `,
+    `INSERT INTO email_verification_tokens (user_id, token, expires_at)
+     VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
     [userId, token]
   );
 
@@ -407,40 +375,19 @@ ${verifyUrl}
 
 This link expires in 24 hours.
 
-VoicePunjabAI
-${APP_BASE_URL}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>Verify your VoicePunjabAI account</h2>
-        <p>Hello ${user.name},</p>
-        <p>Please verify your email address by clicking the button below:</p>
-        <p>
-          <a href="${verifyUrl}" style="display:inline-block;padding:12px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">
-            Verify Email
-          </a>
-        </p>
-        <p>Or copy and paste this link into your browser:</p>
-        <p>${verifyUrl}</p>
-        <p>This link expires in 24 hours.</p>
-        <p>VoicePunjabAI<br>${APP_BASE_URL}</p>
-      </div>
-    `
+VoicePunjabAI`,
+    html: `<p>Hello ${user.name},</p><p>Please verify your email:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>`
   });
 }
 
 async function createPasswordResetToken(userId) {
   const token = makeVerificationToken();
 
-  await dbRun(
-    `DELETE FROM password_reset_tokens WHERE user_id = $1`,
-    [userId]
-  );
+  await dbRun(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [userId]);
 
   await dbRun(
-    `
-      INSERT INTO password_reset_tokens (user_id, token, expires_at)
-      VALUES ($1, $2, NOW() + INTERVAL '1 hour')
-    `,
+    `INSERT INTO password_reset_tokens (user_id, token, expires_at)
+     VALUES ($1, $2, NOW() + INTERVAL '1 hour')`,
     [userId, token]
   );
 
@@ -462,34 +409,9 @@ async function sendPasswordResetEmail(user, token) {
     subject: "Reset your VoicePunjabAI password",
     text: `Hello ${user.name},
 
-We received a request to reset your VoicePunjabAI password.
-
-Open this link to set a new password:
-${resetUrl}
-
-This link expires in 1 hour.
-
-If you did not request this, you can ignore this email.
-
-VoicePunjabAI
-${APP_BASE_URL}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-        <h2>Reset your VoicePunjabAI password</h2>
-        <p>Hello ${user.name},</p>
-        <p>We received a request to reset your password.</p>
-        <p>
-          <a href="${resetUrl}" style="display:inline-block;padding:12px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;">
-            Reset Password
-          </a>
-        </p>
-        <p>Or copy and paste this link into your browser:</p>
-        <p>${resetUrl}</p>
-        <p>This link expires in 1 hour.</p>
-        <p>If you did not request this, you can ignore this email.</p>
-        <p>VoicePunjabAI<br>${APP_BASE_URL}</p>
-      </div>
-    `
+Open this link to reset your password:
+${resetUrl}`,
+    html: `<p>Hello ${user.name},</p><p>Reset password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>`
   });
 }
 
@@ -517,7 +439,7 @@ async function loadUserFromToken(req, res, next) {
 
     req.user = user || null;
     next();
-  } catch (err) {
+  } catch {
     req.user = null;
     next();
   }
@@ -525,27 +447,18 @@ async function loadUserFromToken(req, res, next) {
 
 function requireAuth(req, res, next) {
   if (!req.user) {
-    return res.status(401).json({
-      error: "Login required."
-    });
+    return res.status(401).json({ error: "Login required." });
   }
-
   next();
 }
 
 function requireAdmin(req, res, next) {
   if (!req.user) {
-    return res.status(401).json({
-      error: "Login required."
-    });
+    return res.status(401).json({ error: "Login required." });
   }
-
   if (!req.user.is_admin) {
-    return res.status(403).json({
-      error: "Admin access required."
-    });
+    return res.status(403).json({ error: "Admin access required." });
   }
-
   next();
 }
 
@@ -559,28 +472,23 @@ function getPlanLimits(plan) {
       return { translate: 100000, tts: 150000 };
     case "free":
       return { translate: 1000, tts: 2000 };
-    case "guest":
     default:
       return { translate: 300, tts: 500 };
   }
 }
 
 function getTrackingId(req) {
-  if (req.user?.id) {
-    return `user:${req.user.id}`;
-  }
+  if (req.user?.id) return `user:${req.user.id}`;
   return getClientIp(req);
 }
 
 async function getTodayUsage(clientId, endpoint) {
   const row = await dbGet(
-    `
-      SELECT COALESCE(SUM(char_count), 0) AS total
-      FROM usage_logs
-      WHERE client_id = $1
-        AND endpoint = $2
-        AND created_at::date = CURRENT_DATE
-    `,
+    `SELECT COALESCE(SUM(char_count), 0) AS total
+     FROM usage_logs
+     WHERE client_id = $1
+       AND endpoint = $2
+       AND created_at::date = CURRENT_DATE`,
     [clientId, endpoint]
   );
 
@@ -589,37 +497,31 @@ async function getTodayUsage(clientId, endpoint) {
 
 async function logUsage(clientId, endpoint, charCount) {
   await dbRun(
-    `
-      INSERT INTO usage_logs (client_id, endpoint, char_count)
-      VALUES ($1, $2, $3)
-    `,
+    `INSERT INTO usage_logs (client_id, endpoint, char_count)
+     VALUES ($1, $2, $3)`,
     [clientId, endpoint, charCount]
   );
 }
 
 async function logRequest(endpoint, cacheStatus, charCount, clientId) {
   await dbRun(
-    `
-      INSERT INTO request_logs (endpoint, cache_status, char_count, client_id)
-      VALUES ($1, $2, $3, $4)
-    `,
+    `INSERT INTO request_logs (endpoint, cache_status, char_count, client_id)
+     VALUES ($1, $2, $3, $4)`,
     [endpoint, cacheStatus, charCount, clientId]
   );
 }
 
 async function saveAudioHistory(userId, originalText, voice, speed, pitch, audioUrl) {
   await dbRun(
-    `
-      INSERT INTO audio_history (user_id, original_text, voice, speed, pitch, audio_url)
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `,
+    `INSERT INTO audio_history (user_id, original_text, voice, speed, pitch, audio_url)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
     [userId, originalText, voice, speed, pitch, audioUrl]
   );
 }
 
 async function translateEnglishToPunjabi(text) {
   if (!GOOGLE_CLOUD_PROJECT) {
-    throw new Error("Missing GOOGLE_CLOUD_PROJECT in environment variables");
+    throw new Error("Missing GOOGLE_CLOUD_PROJECT");
   }
 
   const cacheText = normalizeEnglishForCache(text);
@@ -630,36 +532,27 @@ async function translateEnglishToPunjabi(text) {
   );
 
   if (existing) {
-    return {
-      translatedText: existing.translated_text,
-      cached: true
-    };
+    return { translatedText: existing.translated_text, cached: true };
   }
 
-  const request = {
+  const [response] = await translateClient.translateText({
     parent: `projects/${GOOGLE_CLOUD_PROJECT}/locations/global`,
     contents: [text],
     mimeType: "text/plain",
     sourceLanguageCode: "en",
     targetLanguageCode: "pa"
-  };
+  });
 
-  const [response] = await translateClient.translateText(request);
   const translatedText = response.translations?.[0]?.translatedText || text;
 
   await dbRun(
-    `
-      INSERT INTO translation_cache (source_text, translated_text)
-      VALUES ($1, $2)
-      ON CONFLICT (source_text) DO NOTHING
-    `,
+    `INSERT INTO translation_cache (source_text, translated_text)
+     VALUES ($1, $2)
+     ON CONFLICT (source_text) DO NOTHING`,
     [cacheText, translatedText]
   );
 
-  return {
-    translatedText,
-    cached: false
-  };
+  return { translatedText, cached: false };
 }
 
 app.use(
@@ -682,10 +575,7 @@ app.use((req, res, next) => {
   }
 
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
     return res.sendStatus(204);
@@ -696,65 +586,15 @@ app.use((req, res, next) => {
 
 app.use(loadUserFromToken);
 
-const signupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many signup attempts. Please try again later."
-  }
-});
+app.use("/cache", express.static(CACHE_DIR));
+app.use(express.static(path.join(__dirname, "public")));
 
-const resendLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many verification requests. Please try again later."
-  }
-});
-
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many password reset requests. Please try again later."
-  }
-});
-
-const ttsLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many TTS requests. Please wait a minute and try again."
-  }
-});
-
-const convertLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many conversion requests. Please wait a minute and try again."
-  }
-});
-
-const adminLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    error: "Too many admin requests. Please try again later."
-  }
-});
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
+const resendLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
+const forgotPasswordLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 5 });
+const ttsLimiter = rateLimit({ windowMs: 60 * 1000, max: 10 });
+const convertLimiter = rateLimit({ windowMs: 60 * 1000, max: 20 });
+const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 
 app.use("/api/signup", signupLimiter);
 app.use("/api/resend-verification", resendLimiter);
@@ -763,19 +603,15 @@ app.use("/api/tts", ttsLimiter);
 app.use("/api/convert", convertLimiter);
 app.use("/api/admin", adminLimiter);
 
-app.use("/cache", express.static(CACHE_DIR));
-app.use(express.static(path.join(__dirname, "public")));
-
 app.get("/health", async (req, res) => {
   try {
     await dbGet("SELECT 1 AS ok");
     res.send("ok");
   } catch (err) {
+    console.error("health error:", err.message);
     res.status(500).send("db not ready");
   }
 });
-
-/* AUTH ROUTES */
 
 app.post("/api/signup", async (req, res) => {
   try {
@@ -784,33 +620,24 @@ app.post("/api/signup", async (req, res) => {
     const password = String(req.body?.password || "");
 
     if (!name || !email || !password) {
-      return res.status(400).json({
-        error: "Name, email, and password are required."
-      });
+      return res.status(400).json({ error: "Name, email, and password are required." });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({
-        error: "Password must be at least 6 characters long."
-      });
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
     }
 
-    const existing = await dbGet(
-      `SELECT id FROM users WHERE email = $1`,
-      [email]
-    );
+    const existing = await dbGet(`SELECT id FROM users WHERE email = $1`, [email]);
 
     if (existing) {
-      return res.status(409).json({
-        error: "An account with this email already exists."
-      });
+      return res.status(409).json({ error: "An account with this email already exists." });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
     const insertResult = await dbRun(
       `INSERT INTO users (name, email, password_hash, plan, is_verified, is_admin)
-       VALUES ($1, $2, $3, 'free', 0, 0)
+       VALUES ($1, $2, $3, 'free', FALSE, FALSE)
        RETURNING id`,
       [name, email, passwordHash]
     );
@@ -824,101 +651,11 @@ app.post("/api/signup", async (req, res) => {
     await sendVerificationEmail(user, token);
 
     return res.json({
-      message:
-        "Account created. Please check your email and verify your account before logging in."
+      message: "Account created. Please verify your email before logging in."
     });
   } catch (err) {
     console.error("signup error:", err);
-    return res.status(500).json({
-      error: "Signup failed."
-    });
-  }
-});
-
-app.post("/api/resend-verification", async (req, res) => {
-  try {
-    const email = normalizeEmail(req.body?.email);
-
-    if (!email) {
-      return res.status(400).json({
-        error: "Email is required."
-      });
-    }
-
-    const user = await dbGet(
-      `SELECT id, name, email, plan, is_verified, is_admin FROM users WHERE email = $1`,
-      [email]
-    );
-
-    if (!user) {
-      return res.json({
-        message: "If an account exists, a verification email has been sent."
-      });
-    }
-
-    if (Number(user.is_verified) === 1) {
-      return res.json({
-        message: "This email is already verified."
-      });
-    }
-
-    const token = await createVerificationToken(user.id);
-    await sendVerificationEmail(user, token);
-
-    return res.json({
-      message: "Verification email sent."
-    });
-  } catch (err) {
-    console.error("resend verification error:", err);
-    return res.status(500).json({
-      error: "Could not resend verification email."
-    });
-  }
-});
-
-app.get("/api/verify-email", async (req, res) => {
-  try {
-    const token = normalizeText(req.query?.token);
-
-    if (!token) {
-      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
-    }
-
-    const row = await dbGet(
-      `
-        SELECT evt.id, evt.user_id, evt.expires_at, u.email
-        FROM email_verification_tokens evt
-        INNER JOIN users u ON u.id = evt.user_id
-        WHERE evt.token = $1
-      `,
-      [token]
-    );
-
-    if (!row) {
-      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
-    }
-
-    const expired = new Date(row.expires_at).getTime() < Date.now();
-
-    if (expired) {
-      await dbRun(`DELETE FROM email_verification_tokens WHERE id = $1`, [row.id]);
-      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
-    }
-
-    await dbRun(
-      `UPDATE users SET is_verified = 1 WHERE id = $1`,
-      [row.user_id]
-    );
-
-    await dbRun(
-      `DELETE FROM email_verification_tokens WHERE user_id = $1`,
-      [row.user_id]
-    );
-
-    return res.redirect(`${APP_BASE_URL}/login.html?verified=1`);
-  } catch (err) {
-    console.error("verify email error:", err);
-    return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    return res.status(500).json({ error: "Signup failed." });
   }
 });
 
@@ -928,34 +665,23 @@ app.post("/api/login", async (req, res) => {
     const password = String(req.body?.password || "");
 
     if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required."
-      });
+      return res.status(400).json({ error: "Email and password are required." });
     }
 
-    const userRow = await dbGet(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
-    );
+    const userRow = await dbGet(`SELECT * FROM users WHERE email = $1`, [email]);
 
     if (!userRow) {
-      return res.status(401).json({
-        error: "Invalid email or password."
-      });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
     const passwordOk = await bcrypt.compare(password, userRow.password_hash);
 
     if (!passwordOk) {
-      return res.status(401).json({
-        error: "Invalid email or password."
-      });
+      return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    if (Number(userRow.is_verified) !== 1) {
-      return res.status(403).json({
-        error: "Please verify your email before logging in."
-      });
+    if (!userRow.is_verified) {
+      return res.status(403).json({ error: "Please verify your email before logging in." });
     }
 
     const user = {
@@ -976,9 +702,74 @@ app.post("/api/login", async (req, res) => {
     });
   } catch (err) {
     console.error("login error:", err);
-    return res.status(500).json({
-      error: "Login failed."
-    });
+    return res.status(500).json({ error: "Login failed." });
+  }
+});
+
+app.post("/api/resend-verification", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body?.email);
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required." });
+    }
+
+    const user = await dbGet(
+      `SELECT id, name, email, plan, is_verified, is_admin FROM users WHERE email = $1`,
+      [email]
+    );
+
+    if (!user) {
+      return res.json({ message: "If an account exists, a verification email has been sent." });
+    }
+
+    if (user.is_verified) {
+      return res.json({ message: "This email is already verified." });
+    }
+
+    const token = await createVerificationToken(user.id);
+    await sendVerificationEmail(user, token);
+
+    return res.json({ message: "Verification email sent." });
+  } catch (err) {
+    console.error("resend verification error:", err);
+    return res.status(500).json({ error: "Could not resend verification email." });
+  }
+});
+
+app.get("/api/verify-email", async (req, res) => {
+  try {
+    const token = normalizeText(req.query?.token);
+
+    if (!token) {
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    const row = await dbGet(
+      `SELECT id, user_id, expires_at
+       FROM email_verification_tokens
+       WHERE token = $1`,
+      [token]
+    );
+
+    if (!row) {
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    const expired = new Date(row.expires_at).getTime() < Date.now();
+
+    if (expired) {
+      await dbRun(`DELETE FROM email_verification_tokens WHERE id = $1`, [row.id]);
+      return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+    }
+
+    await dbRun(`UPDATE users SET is_verified = TRUE WHERE id = $1`, [row.user_id]);
+    await dbRun(`DELETE FROM email_verification_tokens WHERE user_id = $1`, [row.user_id]);
+
+    return res.redirect(`${APP_BASE_URL}/login.html?verified=1`);
+  } catch (err) {
+    console.error("verify email error:", err);
+    return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
   }
 });
 
@@ -987,15 +778,10 @@ app.post("/api/forgot-password", async (req, res) => {
     const email = normalizeEmail(req.body?.email);
 
     if (!email) {
-      return res.status(400).json({
-        error: "Email is required."
-      });
+      return res.status(400).json({ error: "Email is required." });
     }
 
-    const user = await dbGet(
-      `SELECT id, name, email FROM users WHERE email = $1`,
-      [email]
-    );
+    const user = await dbGet(`SELECT id, name, email FROM users WHERE email = $1`, [email]);
 
     if (!user) {
       return res.json({
@@ -1011,9 +797,7 @@ app.post("/api/forgot-password", async (req, res) => {
     });
   } catch (err) {
     console.error("forgot password error:", err);
-    return res.status(500).json({
-      error: "Could not process password reset request."
-    });
+    return res.status(500).json({ error: "Could not process password reset request." });
   }
 });
 
@@ -1023,105 +807,103 @@ app.post("/api/reset-password", async (req, res) => {
     const password = String(req.body?.password || "");
 
     if (!token || !password) {
-      return res.status(400).json({
-        error: "Token and new password are required."
-      });
+      return res.status(400).json({ error: "Token and password are required." });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({
-        error: "Password must be at least 6 characters long."
-      });
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
     }
 
     const row = await dbGet(
-      `
-        SELECT prt.id, prt.user_id, prt.expires_at
-        FROM password_reset_tokens prt
-        WHERE prt.token = $1
-      `,
+      `SELECT id, user_id, expires_at
+       FROM password_reset_tokens
+       WHERE token = $1`,
       [token]
     );
 
     if (!row) {
-      return res.status(400).json({
-        error: "Invalid or expired reset link."
-      });
+      return res.status(400).json({ error: "Invalid or expired reset link." });
     }
 
     const expired = new Date(row.expires_at).getTime() < Date.now();
 
     if (expired) {
       await dbRun(`DELETE FROM password_reset_tokens WHERE id = $1`, [row.id]);
-      return res.status(400).json({
-        error: "Invalid or expired reset link."
-      });
+      return res.status(400).json({ error: "Invalid or expired reset link." });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    await dbRun(
-      `UPDATE users SET password_hash = $1 WHERE id = $2`,
-      [passwordHash, row.user_id]
-    );
+    await dbRun(`UPDATE users SET password_hash = $1 WHERE id = $2`, [
+      passwordHash,
+      row.user_id
+    ]);
 
-    await dbRun(
-      `DELETE FROM password_reset_tokens WHERE user_id = $1`,
-      [row.user_id]
-    );
+    await dbRun(`DELETE FROM password_reset_tokens WHERE user_id = $1`, [row.user_id]);
 
     return res.json({
       message: "Password updated successfully. You can now log in."
     });
   } catch (err) {
     console.error("reset password error:", err);
-    return res.status(500).json({
-      error: "Could not reset password."
-    });
+    return res.status(500).json({ error: "Could not reset password." });
   }
 });
 
 app.get("/api/me", (req, res) => {
   if (!req.user) {
-    return res.json({
-      loggedIn: false,
-      user: null
-    });
+    return res.json({ loggedIn: false, user: null });
   }
 
-  return res.json({
-    loggedIn: true,
-    user: sanitizeUser(req.user)
-  });
+  return res.json({ loggedIn: true, user: sanitizeUser(req.user) });
 });
-
-/* HISTORY */
 
 app.get("/api/history", requireAuth, async (req, res) => {
   try {
     const rows = await dbAll(
-      `
-        SELECT id, original_text, voice, speed, pitch, audio_url, created_at
-        FROM audio_history
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT 50
-      `,
+      `SELECT id, original_text, voice, speed, pitch, audio_url, created_at
+       FROM audio_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
       [req.user.id]
     );
 
-    return res.json({
-      items: rows || []
-    });
+    return res.json({ items: rows || [] });
   } catch (err) {
     console.error("history error:", err);
-    return res.status(500).json({
-      error: "Failed to load audio history."
-    });
+    return res.status(500).json({ error: "Failed to load audio history." });
   }
 });
 
-/* USAGE */
+app.delete("/api/history/:id", requireAuth, async (req, res) => {
+  try {
+    const historyId = Number(req.params.id);
+
+    if (!Number.isInteger(historyId) || historyId <= 0) {
+      return res.status(400).json({ error: "Invalid history item id." });
+    }
+
+    const existing = await dbGet(
+      `SELECT id FROM audio_history WHERE id = $1 AND user_id = $2`,
+      [historyId, req.user.id]
+    );
+
+    if (!existing) {
+      return res.status(404).json({ error: "History item not found." });
+    }
+
+    await dbRun(`DELETE FROM audio_history WHERE id = $1 AND user_id = $2`, [
+      historyId,
+      req.user.id
+    ]);
+
+    return res.json({ message: "History item deleted successfully." });
+  } catch (err) {
+    console.error("delete history error:", err);
+    return res.status(500).json({ error: "Failed to delete history item." });
+  }
+});
 
 app.get("/api/usage", async (req, res) => {
   try {
@@ -1147,13 +929,9 @@ app.get("/api/usage", async (req, res) => {
     });
   } catch (err) {
     console.error("usage error:", err);
-    return res.status(500).json({
-      error: "Failed to load usage stats."
-    });
+    return res.status(500).json({ error: "Failed to load usage stats." });
   }
 });
-
-/* ADMIN */
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
   try {
@@ -1174,70 +952,24 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
       requestLogCount,
       topClientsToday
     ] = await Promise.all([
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'convert'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'tts'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COALESCE(SUM(char_count), 0) AS total
-        FROM usage_logs
-        WHERE endpoint = 'convert'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COALESCE(SUM(char_count), 0) AS total
-        FROM usage_logs
-        WHERE endpoint = 'tts'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'convert'
-          AND cache_status = 'hit'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'convert'
-          AND cache_status = 'miss'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'tts'
-          AND cache_status = 'hit'
-          AND created_at::date = CURRENT_DATE
-      `),
-      dbGet(`
-        SELECT COUNT(*) AS total
-        FROM request_logs
-        WHERE endpoint = 'tts'
-          AND cache_status = 'miss'
-          AND created_at::date = CURRENT_DATE
-      `),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'convert' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'tts' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COALESCE(SUM(char_count), 0) AS total FROM usage_logs WHERE endpoint = 'convert' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COALESCE(SUM(char_count), 0) AS total FROM usage_logs WHERE endpoint = 'tts' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'convert' AND cache_status = 'hit' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'convert' AND cache_status = 'miss' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'tts' AND cache_status = 'hit' AND created_at::date = CURRENT_DATE`),
+      dbGet(`SELECT COUNT(*) AS total FROM request_logs WHERE endpoint = 'tts' AND cache_status = 'miss' AND created_at::date = CURRENT_DATE`),
       dbGet(`SELECT COUNT(*) AS total FROM translation_cache`),
       dbGet(`SELECT COUNT(*) AS total FROM tts_cache`),
       dbGet(`SELECT COUNT(*) AS total FROM usage_logs`),
       dbGet(`SELECT COUNT(*) AS total FROM request_logs`),
-      dbAll(`
-        SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
-        FROM request_logs
-        WHERE created_at::date = CURRENT_DATE
-        GROUP BY client_id
-        ORDER BY requests DESC, chars DESC
-        LIMIT 5
-      `)
+      dbAll(`SELECT client_id, COUNT(*) AS requests, COALESCE(SUM(char_count), 0) AS chars
+             FROM request_logs
+             WHERE created_at::date = CURRENT_DATE
+             GROUP BY client_id
+             ORDER BY requests DESC, chars DESC
+             LIMIT 5`)
     ]);
 
     const translateHits = Number(translateCacheHitsToday?.total || 0);
@@ -1245,24 +977,17 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     const ttsHits = Number(ttsCacheHitsToday?.total || 0);
     const ttsMisses = Number(ttsCacheMissesToday?.total || 0);
 
-    const translateTotalForRate = translateHits + translateMisses;
-    const ttsTotalForRate = ttsHits + ttsMisses;
-
     return res.json({
       today: {
         translate_requests: Number(translateToday?.total || 0),
         tts_requests: Number(ttsToday?.total || 0),
         translate_characters: Number(translateCharsToday?.total || 0),
         tts_characters: Number(ttsCharsToday?.total || 0),
-        translate_cache_hits: translateHits,
-        translate_cache_misses: translateMisses,
-        tts_cache_hits: ttsHits,
-        tts_cache_misses: ttsMisses,
-        translate_cache_hit_rate: translateTotalForRate
-          ? `${Math.round((translateHits / translateTotalForRate) * 100)}%`
+        translate_cache_hit_rate: translateHits + translateMisses
+          ? `${Math.round((translateHits / (translateHits + translateMisses)) * 100)}%`
           : "0%",
-        tts_cache_hit_rate: ttsTotalForRate
-          ? `${Math.round((ttsHits / ttsTotalForRate) * 100)}%`
+        tts_cache_hit_rate: ttsHits + ttsMisses
+          ? `${Math.round((ttsHits / (ttsHits + ttsMisses)) * 100)}%`
           : "0%"
       },
       totals: {
@@ -1279,23 +1004,16 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
     });
   } catch (err) {
     console.error("admin stats error:", err);
-    return res.status(500).json({
-      error: "Failed to load admin stats."
-    });
+    return res.status(500).json({ error: "Failed to load admin stats." });
   }
 });
-
-/* CONVERT */
 
 app.post("/api/convert", async (req, res) => {
   const rawText = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();
 
   if (!rawText) {
-    return res.json({
-      gurmukhi: "",
-      note: "Nothing to convert."
-    });
+    return res.json({ gurmukhi: "", note: "Nothing to convert." });
   }
 
   if (rawText.length > MAX_CONVERT_TEXT_LENGTH) {
@@ -1308,7 +1026,6 @@ app.post("/api/convert", async (req, res) => {
   const trackingId = getTrackingId(req);
   const plan = req.user?.plan || "guest";
   const limits = getPlanLimits(plan);
-
   const todaysUsage = await getTodayUsage(trackingId, "convert");
 
   if (todaysUsage + rawText.length > limits.translate) {
@@ -1318,53 +1035,29 @@ app.post("/api/convert", async (req, res) => {
     });
   }
 
-  const kill = setTimeout(() => {
-    if (!res.headersSent) {
-      res.status(504).json({
-        gurmukhi: rawText,
-        note: "Conversion timeout. Please try again."
-      });
-    }
-  }, 12000);
-
   try {
     if (containsGurmukhi(rawText)) {
-      clearTimeout(kill);
-      return res.json({
-        gurmukhi: rawText,
-        note: "Text is already in Punjabi."
-      });
+      return res.json({ gurmukhi: rawText, note: "Text is already in Punjabi." });
     }
 
     if (mode !== "english") {
-      clearTimeout(kill);
       return res.json({
         gurmukhi: rawText,
-        note: "Only English to Punjabi conversion is enabled in this section."
+        note: "Only English to Punjabi conversion is enabled."
       });
     }
 
     const result = await translateEnglishToPunjabi(rawText);
 
     await logUsage(trackingId, "convert", rawText.length);
-    await logRequest(
-      "convert",
-      result.cached ? "hit" : "miss",
-      rawText.length,
-      trackingId
-    );
+    await logRequest("convert", result.cached ? "hit" : "miss", rawText.length, trackingId);
 
-    clearTimeout(kill);
     return res.json({
       gurmukhi: result.translatedText,
-      note: result.cached
-        ? "Translated from smart cache."
-        : "Translated from English to Punjabi."
+      note: result.cached ? "Translated from cache." : "Translated successfully."
     });
   } catch (err) {
-    clearTimeout(kill);
     console.error("convert error:", err);
-
     return res.status(500).json({
       gurmukhi: rawText,
       error: "convert failed",
@@ -1372,8 +1065,6 @@ app.post("/api/convert", async (req, res) => {
     });
   }
 });
-
-/* TTS */
 
 app.post("/api/tts", async (req, res) => {
   try {
@@ -1398,30 +1089,14 @@ app.post("/api/tts", async (req, res) => {
       });
     }
 
-    if (!isValidVoice(voice)) {
-      return res.status(400).json({
-        error: "Invalid voice selected."
-      });
-    }
-
-    if (!isValidSpeed(speed)) {
-      return res.status(400).json({
-        error: `Speed must be between ${MIN_SPEED} and ${MAX_SPEED}.`
-      });
-    }
-
-    if (!isValidPitch(pitch)) {
-      return res.status(400).json({
-        error: `Pitch must be between ${MIN_PITCH} and ${MAX_PITCH}.`
-      });
+    if (!isValidVoice(voice) || !isValidSpeed(speed) || !isValidPitch(pitch)) {
+      return res.status(400).json({ error: "Invalid voice settings." });
     }
 
     const normalizedPunjabi = normalizePunjabiForCache(rawText);
-
     const trackingId = getTrackingId(req);
     const plan = req.user?.plan || "guest";
     const limits = getPlanLimits(plan);
-
     const todaysUsage = await getTodayUsage(trackingId, "tts");
 
     if (todaysUsage + rawText.length > limits.tts) {
@@ -1447,7 +1122,6 @@ app.post("/api/tts", async (req, res) => {
 
     if (existing) {
       const cachedFilePath = path.join(CACHE_DIR, existing.file_name);
-
       if (fs.existsSync(cachedFilePath)) {
         audioUrl = `/cache/${existing.file_name}`;
         wasCached = true;
@@ -1455,20 +1129,15 @@ app.post("/api/tts", async (req, res) => {
     }
 
     if (!audioUrl) {
-      const request = {
+      const [response] = await ttsClient.synthesizeSpeech({
         input: { text: rawText },
-        voice: {
-          languageCode: "pa-IN",
-          name: voice
-        },
+        voice: { languageCode: "pa-IN", name: voice },
         audioConfig: {
           audioEncoding: "MP3",
           speakingRate: speed,
           pitch
         }
-      };
-
-      const [response] = await ttsClient.synthesizeSpeech(request);
+      });
 
       const fileName = `${cacheKey}.mp3`;
       const filePath = path.join(CACHE_DIR, fileName);
@@ -1476,36 +1145,23 @@ app.post("/api/tts", async (req, res) => {
       fs.writeFileSync(filePath, response.audioContent, "binary");
 
       await dbRun(
-        `
-          INSERT INTO tts_cache (cache_key, text, voice, speed, pitch, file_name)
-          VALUES ($1, $2, $3, $4, $5, $6)
-          ON CONFLICT (cache_key) DO NOTHING
-        `,
+        `INSERT INTO tts_cache (cache_key, text, voice, speed, pitch, file_name)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (cache_key) DO NOTHING`,
         [cacheKey, normalizedPunjabi, voice, speed, pitch, fileName]
       );
 
       audioUrl = `/cache/${fileName}`;
-      wasCached = false;
     }
 
     await logUsage(trackingId, "tts", rawText.length);
     await logRequest("tts", wasCached ? "hit" : "miss", rawText.length, trackingId);
 
     if (req.user?.id) {
-      await saveAudioHistory(
-        req.user.id,
-        rawText,
-        voice,
-        speed,
-        pitch,
-        audioUrl
-      );
+      await saveAudioHistory(req.user.id, rawText, voice, speed, pitch, audioUrl);
     }
 
-    return res.json({
-      audioUrl,
-      cached: wasCached
-    });
+    return res.json({ audioUrl, cached: wasCached });
   } catch (err) {
     console.error("tts error:", err);
     return res.status(500).json({
@@ -1521,19 +1177,17 @@ app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
 
 (async () => {
   try {
+    await pool.query("SELECT 1");
+    console.log("Database connection successful.");
+
     await initDatabase();
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`VoicePunjab API running on port ${PORT}`);
-      console.log("NODE_ENV =", process.env.NODE_ENV || "(missing)");
-      console.log("ALLOWED_ORIGIN =", ALLOWED_ORIGIN_RAW);
-      console.log("GOOGLE_CLOUD_PROJECT =", GOOGLE_CLOUD_PROJECT || "(missing)");
       console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
+      console.log("DB_HOST =", DB_HOST || "(not set)");
       console.log("DB_NAME =", DB_NAME || "(missing)");
       console.log("DB_USER =", DB_USER || "(missing)");
-      console.log("JWT_SECRET set =", !!JWT_SECRET);
-      console.log("SMTP configured =", !!mailer);
-      console.log("CACHE_DIR =", CACHE_DIR);
     });
   } catch (err) {
     console.error("Database init failed:", err);
