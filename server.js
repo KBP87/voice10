@@ -62,6 +62,8 @@ const INSTANCE_CONNECTION_NAME = String(
 const DB_HOST = String(process.env.DB_HOST || "").trim();
 const DB_PORT = Number(process.env.DB_PORT || 5432);
 
+let dbReady = false;
+
 const clientConfig = {
   projectId: GOOGLE_CLOUD_PROJECT
 };
@@ -146,6 +148,20 @@ if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
       pass: SMTP_PASS
     }
   });
+}
+
+async function dbGet(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows[0] || null;
+}
+
+async function dbAll(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows;
+}
+
+async function dbRun(sql, params = []) {
+  return pool.query(sql, params);
 }
 
 async function initDatabase() {
@@ -237,20 +253,6 @@ async function initDatabase() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-}
-
-async function dbGet(sql, params = []) {
-  const result = await pool.query(sql, params);
-  return result.rows[0] || null;
-}
-
-async function dbAll(sql, params = []) {
-  const result = await pool.query(sql, params);
-  return result.rows;
-}
-
-async function dbRun(sql, params = []) {
-  return pool.query(sql, params);
 }
 
 function containsGurmukhi(text) {
@@ -438,7 +440,7 @@ async function loadUserFromToken(req, res, next) {
 
     req.user = user || null;
     next();
-  } catch {
+  } catch (err) {
     req.user = null;
     next();
   }
@@ -594,30 +596,35 @@ const signupLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false
 });
+
 const resendLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false
 });
+
 const forgotPasswordLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   standardHeaders: true,
   legacyHeaders: false
 });
+
 const ttsLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false
 });
+
 const convertLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false
 });
+
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -633,6 +640,10 @@ app.use("/api/convert", convertLimiter);
 app.use("/api/admin", adminLimiter);
 
 app.get("/health", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).send("server up, db not ready");
+  }
+
   try {
     await dbGet("SELECT 1 AS ok");
     res.send("ok");
@@ -643,6 +654,10 @@ app.get("/health", async (req, res) => {
 });
 
 app.post("/api/signup", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const name = normalizeText(req.body?.name);
     const email = normalizeEmail(req.body?.email);
@@ -689,6 +704,10 @@ app.post("/api/signup", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const email = normalizeEmail(req.body?.email);
     const password = String(req.body?.password || "");
@@ -736,6 +755,10 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/resend-verification", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const email = normalizeEmail(req.body?.email);
 
@@ -767,6 +790,10 @@ app.post("/api/resend-verification", async (req, res) => {
 });
 
 app.get("/api/verify-email", async (req, res) => {
+  if (!dbReady) {
+    return res.redirect(`${APP_BASE_URL}/login.html?verified=0`);
+  }
+
   try {
     const token = normalizeText(req.query?.token);
 
@@ -803,6 +830,10 @@ app.get("/api/verify-email", async (req, res) => {
 });
 
 app.post("/api/forgot-password", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const email = normalizeEmail(req.body?.email);
 
@@ -831,6 +862,10 @@ app.post("/api/forgot-password", async (req, res) => {
 });
 
 app.post("/api/reset-password", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const token = normalizeText(req.body?.token);
     const password = String(req.body?.password || "");
@@ -888,6 +923,10 @@ app.get("/api/me", (req, res) => {
 });
 
 app.get("/api/history", requireAuth, async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const rows = await dbAll(
       `SELECT id, original_text, voice, speed, pitch, audio_url, created_at
@@ -906,6 +945,10 @@ app.get("/api/history", requireAuth, async (req, res) => {
 });
 
 app.delete("/api/history/:id", requireAuth, async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const historyId = Number(req.params.id);
 
@@ -935,6 +978,10 @@ app.delete("/api/history/:id", requireAuth, async (req, res) => {
 });
 
 app.get("/api/usage", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const trackingId = getTrackingId(req);
     const plan = req.user?.plan || "guest";
@@ -963,6 +1010,10 @@ app.get("/api/usage", async (req, res) => {
 });
 
 app.get("/api/admin/stats", requireAdmin, async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({ error: "Service starting. Please try again." });
+  }
+
   try {
     const freeLimits = getPlanLimits("free");
 
@@ -1038,6 +1089,13 @@ app.get("/api/admin/stats", requireAdmin, async (req, res) => {
 });
 
 app.post("/api/convert", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({
+      gurmukhi: "",
+      note: "Service starting. Please try again."
+    });
+  }
+
   const rawText = normalizeText(req.body?.text);
   const mode = normalizeText(req.body?.mode || "english").toLowerCase();
 
@@ -1096,6 +1154,12 @@ app.post("/api/convert", async (req, res) => {
 });
 
 app.post("/api/tts", async (req, res) => {
+  if (!dbReady) {
+    return res.status(503).json({
+      error: "Service starting. Please try again."
+    });
+  }
+
   try {
     const rawText = normalizeText(req.body?.text);
     const voice = normalizeText(req.body?.voice || "pa-IN-Standard-A");
@@ -1181,6 +1245,7 @@ app.post("/api/tts", async (req, res) => {
       );
 
       audioUrl = `/cache/${fileName}`;
+      wasCached = false;
     }
 
     await logUsage(trackingId, "tts", rawText.length);
@@ -1204,22 +1269,22 @@ app.get(/^(?!\/api\/|\/health|\/cache\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-(async () => {
-  try {
-    await pool.query("SELECT 1");
-    console.log("Database connection successful.");
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`VoicePunjab API running on port ${PORT}`);
+  console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
+  console.log("DB_HOST =", DB_HOST || "(not set)");
+  console.log("DB_NAME =", DB_NAME || "(missing)");
+  console.log("DB_USER =", DB_USER || "(missing)");
 
-    await initDatabase();
-
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`VoicePunjab API running on port ${PORT}`);
-      console.log("INSTANCE_CONNECTION_NAME =", INSTANCE_CONNECTION_NAME || "(missing)");
-      console.log("DB_HOST =", DB_HOST || "(not set)");
-      console.log("DB_NAME =", DB_NAME || "(missing)");
-      console.log("DB_USER =", DB_USER || "(missing)");
-    });
-  } catch (err) {
-    console.error("Database init failed:", err);
-    process.exit(1);
-  }
-})();
+  (async () => {
+    try {
+      await pool.query("SELECT 1");
+      console.log("Database connection successful.");
+      await initDatabase();
+      dbReady = true;
+      console.log("Database initialized successfully.");
+    } catch (err) {
+      console.error("Database background init failed:", err);
+    }
+  })();
+});
