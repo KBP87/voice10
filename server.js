@@ -357,9 +357,10 @@ async function createVerificationToken(userId) {
 async function sendVerificationEmail(user, token) {
   const verifyUrl = `${API_PUBLIC_BASE_URL}/api/verify-email?token=${encodeURIComponent(token)}`;
 
+  console.log("Verification URL for", user.email, ":", verifyUrl);
+
   if (!mailer) {
     console.log("Verification email not sent because SMTP is not configured.");
-    console.log("Verification URL:", verifyUrl);
     return;
   }
 
@@ -393,6 +394,7 @@ VoicePunjabAI`,
 
   console.log("Verification email sent:", info.messageId);
 }
+
 
 async function createPasswordResetToken(userId) {
   const token = makeVerificationToken();
@@ -715,11 +717,20 @@ app.post("/api/signup", async (req, res) => {
     );
 
     const token = await createVerificationToken(user.id);
-    await sendVerificationEmail(user, token);
 
-    return res.json({
-      message: "Account created. Please verify your email before logging in."
-    });
+    try {
+      await sendVerificationEmail(user, token);
+      return res.json({
+        message: "Account created. Please verify your email before logging in."
+      });
+    } catch (mailErr) {
+      console.error("verification email send failed:", mailErr);
+
+      return res.json({
+        message:
+          "Account created, but verification email could not be delivered right now. Please use Resend Verification from the login page."
+      });
+    }
   } catch (err) {
     console.error("signup error:", err);
     return res.status(500).json({ error: "Signup failed." });
@@ -795,14 +806,22 @@ app.post("/api/resend-verification", async (req, res) => {
     }
 
     const token = await createVerificationToken(user.id);
-    await sendVerificationEmail(user, token);
 
-    return res.json({ message: "Verification email sent." });
+    try {
+      await sendVerificationEmail(user, token);
+      return res.json({ message: "Verification email sent." });
+    } catch (mailErr) {
+      console.error("resend verification email failed:", mailErr);
+      return res.status(500).json({
+        error: "Could not send verification email right now. Please try again later."
+      });
+    }
   } catch (err) {
     console.error("resend verification error:", err);
     return res.status(500).json({ error: "Could not resend verification email." });
   }
 });
+
 
 app.get("/api/verify-email", async (req, res) => {
   try {
@@ -857,16 +876,24 @@ app.post("/api/forgot-password", async (req, res) => {
     }
 
     const token = await createPasswordResetToken(user.id);
-    await sendPasswordResetEmail(user, token);
 
-    return res.json({
-      message: "If an account exists for this email, a reset link has been sent."
-    });
+    try {
+      await sendPasswordResetEmail(user, token);
+      return res.json({
+        message: "If an account exists for this email, a reset link has been sent."
+      });
+    } catch (mailErr) {
+      console.error("password reset email failed:", mailErr);
+      return res.status(500).json({
+        error: "Could not send reset email right now. Please try again later."
+      });
+    }
   } catch (err) {
     console.error("forgot password error:", err);
     return res.status(500).json({ error: "Could not process password reset request." });
   }
 });
+
 
 app.post("/api/reset-password", async (req, res) => {
   try {
